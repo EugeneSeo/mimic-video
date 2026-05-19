@@ -67,6 +67,7 @@ class World2ActionModelConfig:
 
     fsdp_shard_size: int  # 0 means not using fsdp, -1 means set to world size
     data_config: DictConfig
+    allow_partial_action_dit_load: bool = False
 
 
 def _dp_mean(x: torch.Tensor) -> torch.Tensor:
@@ -107,6 +108,7 @@ class World2ActionModel(ImaginaireModel):
         self.pipe: World2ActionPipeline = World2ActionPipeline.from_config(
             config.pipe_config,
             dit_path=config.action_dit_path,
+            allow_partial_dit_load=config.allow_partial_action_dit_load,
             **self.tensor_kwargs,
         )
 

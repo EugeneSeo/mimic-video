@@ -21,7 +21,7 @@ from cosmos_predict2.callbacks.iter_speed import IterSpeed
 from imaginaire.callbacks.manual_gc import ManualGarbageCollection
 from imaginaire.lazy_config import PLACEHOLDER
 from imaginaire.lazy_config import LazyCall as L
-from imaginaire.utils.callback import LowPrecisionCallback
+from imaginaire.utils.callback import LowPrecisionCallback, WandbCallback
 
 BASIC_CALLBACKS = dict(
     low_prec=L(LowPrecisionCallback)(config=PLACEHOLDER, trainer=PLACEHOLDER, update_iter=1),
@@ -33,6 +33,7 @@ BASIC_CALLBACKS = dict(
     ),
     manual_gc=L(ManualGarbageCollection)(every_n=5),
     grad_clip=L(GradClip)(clip_norm=10.0),
+    wandb=L(WandbCallback)(),
 )
 
 

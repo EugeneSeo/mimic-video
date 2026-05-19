@@ -127,10 +127,13 @@ class MimicDataset(torch.utils.data.Dataset):
         data_cache = collections.defaultdict(list)
 
         with self.restrict_chunk_reader() as normed_keys, normed_keys.ignore_transforms() as dataset:
+            default_num_workers = (os.cpu_count() or 4) // 4
+            stats_num_workers = int(os.environ.get("MIMIC_DATASET_STATS_NUM_WORKERS", default_num_workers))
+            stats_batch_size = int(os.environ.get("MIMIC_DATASET_STATS_BATCH_SIZE", max(1, default_num_workers)))
             dataloader = torch.utils.data.DataLoader(
                 dataset=dataset,
-                batch_size=(os.cpu_count() or 4) // 4,
-                num_workers=(os.cpu_count() or 4) // 4,
+                batch_size=max(1, stats_batch_size),
+                num_workers=max(0, stats_num_workers),
             )
             for batch in tqdm.tqdm(dataloader, desc="Iterating dataset to get normalization"):
                 for key, values in batch.items():

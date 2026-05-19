@@ -18,6 +18,7 @@ from __future__ import annotations
 import collections
 import collections.abc
 import ctypes
+import glob
 import functools
 import os
 from collections.abc import Callable, Container
@@ -80,7 +81,19 @@ def init() -> int | None:
             rank0_only=False,
         )
     # Increase the L2 fetch granularity for faster speed.
-    _libcudart = ctypes.CDLL("libcudart.so")
+    try:
+        _libcudart = ctypes.CDLL("libcudart.so")
+    except OSError:
+        cuda_runtime_candidates = glob.glob(
+            os.path.join(os.path.dirname(torch.__file__), "..", "nvidia", "cuda_runtime", "lib", "libcudart.so*")
+        )
+        cuda_runtime_candidates += glob.glob(
+            os.path.join(sys_prefix := os.sys.prefix, "lib", "python*", "site-packages", "nvidia", "cuda_runtime", "lib", "libcudart.so*")
+        )
+        cuda_runtime_candidates = sorted(set(cuda_runtime_candidates))
+        if not cuda_runtime_candidates:
+            raise
+        _libcudart = ctypes.CDLL(cuda_runtime_candidates[-1])
     # Set device limit on the current device.
     p_value = ctypes.cast((ctypes.c_int * 1)(), ctypes.POINTER(ctypes.c_int))
     _libcudart.cudaDeviceSetLimit(ctypes.c_int(0x05), ctypes.c_int(128))

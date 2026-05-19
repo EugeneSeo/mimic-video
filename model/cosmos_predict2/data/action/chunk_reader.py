@@ -186,8 +186,12 @@ class ChunkReader:
         if self._restrict_keys is not None and key not in self._restrict_keys:
             return None
 
-        shift_timesteps = meta["shift_right_by"] * S_TO_NS
-        this_step_timestamp = step_timestamp + shift_timesteps
+        # Cast storage timestamps to signed Python ints before arithmetic.
+        # Zarr timestamp arrays are often uint64; subtracting observation history
+        # duration from an early timestep would otherwise underflow to a huge
+        # timestamp and produce an empty read window.
+        shift_timesteps = int(round(meta["shift_right_by"] * S_TO_NS))
+        this_step_timestamp = int(step_timestamp) + shift_timesteps
 
         actual_timestamps = root[f"{key}_timestamps"]
         n_timestamps = len(actual_timestamps)

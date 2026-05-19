@@ -1,5 +1,6 @@
 import copy
 import itertools as it
+import pathlib
 
 import numpy as np
 from hydra.core.config_store import ConfigStore
@@ -82,6 +83,9 @@ def get_local_batch_size(global_bsz: int) -> int:
 for video_ckpt, data_config, xattn_layer_idx, lr, bsz in it.product(
     VIDEO_MODEL_CKPT_NAMES, DATA_CONFIGS.keys(), xattn_layer_idxs, lrs, bszs
 ):
+    if data_config.startswith("so101"):
+        continue
+
     pipes = [pipe for pipe in world2action_pipes if data_config.startswith(pipe)]
     if not pipes:
         continue
@@ -110,6 +114,74 @@ for video_ckpt, data_config, xattn_layer_idx, lr, bsz in it.product(
         package="_global_",
         name=exp_name,
         node=cfg,
+    )
+
+
+SO101_VIDEO_CKPTS = [
+    "v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused",
+    "v2w_pretrained_cosmos",
+]
+
+SO101_ACTION_DECODER_PARTIAL_INITS = {
+    "v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused": (
+        pathlib.Path(__file__).parents[3]
+        / "checkpoints"
+        / "action_decoder"
+        / (
+            "w2a_bridge_v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused_"
+            "lr1.000e-04_layer20_bsz256_iter_000014112.pt"
+        )
+    ),
+    "v2w_pretrained_cosmos": (
+        pathlib.Path(__file__).parents[3]
+        / "checkpoints"
+        / "action_decoder"
+        / "w2a_bridge_v2w_pretrained_cosmos_lr1.000e-04_layer20_bsz256_iter_000014112.pt"
+    ),
+}
+
+
+def register_so101_experiment(
+    *,
+    init_name: str,
+    video_ckpt: str,
+    lr: float,
+    bsz: int,
+    action_dit_path: str = "",
+) -> None:
+    cfg = copy.deepcopy(BASE)
+    cfg["defaults"][0]["override /model"] = video_ckpt
+    cfg["defaults"][1]["override /world2action_pipe"] = "so101"
+    cfg["defaults"][2]["override /data_config"] = "so101"
+    cfg["model"]["config"]["pipe_config"]["xattn_layer_idx"] = 20
+    cfg["model"]["config"]["action_dit_path"] = action_dit_path
+    cfg["model"]["config"]["allow_partial_action_dit_load"] = bool(action_dit_path)
+    cfg["optimizer"]["lr"] = lr
+    cfg["job"]["group"] = "so101"
+    cfg["job"]["name"] = f"w2a_so101_{init_name}_{video_ckpt}_lr{lr:.3e}_layer20_bsz{bsz}"
+    cfg["dataloader_train"] = {"batch_size": L(get_local_batch_size)(global_bsz=bsz)}
+    cfg["trainer"]["grad_accum_iter"] = max(1, 64 // bsz)
+    cfg["trainer"]["max_iter"] = 30_000
+    cfg["trainer"]["validation_iter"] = 1_000
+    cfg["trainer"]["logging_iter"] = 100
+    cfg["checkpoint"]["save_iter"] = 1_000
+
+    cs.store(
+        group="experiment",
+        package="_global_",
+        name=cfg["job"]["name"],
+        node=cfg,
+    )
+
+
+for so101_video_ckpt, so101_lr, so101_bsz in it.product(SO101_VIDEO_CKPTS, [1e-4, 3e-4], [4, 8, 16, 32, 64]):
+    register_so101_experiment(init_name="random", video_ckpt=so101_video_ckpt, lr=so101_lr, bsz=so101_bsz)
+    register_so101_experiment(
+        init_name="partial_bridge_init",
+        video_ckpt=so101_video_ckpt,
+        lr=so101_lr,
+        bsz=so101_bsz,
+        action_dit_path=str(SO101_ACTION_DECODER_PARTIAL_INITS[so101_video_ckpt].resolve()),
     )
 
 # TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC=7200 CUDA_DEVICE_MAX_CONNECTIONS=1 NVTE_FUSED_ATTN=0 torchrun --nproc_per_node=4 --master_port=12341 -m scripts.train --config=cosmos_predict2/configs/config.py -- experiment=...

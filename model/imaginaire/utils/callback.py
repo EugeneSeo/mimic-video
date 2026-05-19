@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import atexit
 import json
+import os
 import queue
 import threading
 import time
@@ -410,6 +411,202 @@ class IterationLoggerCallback(Callback):
             log.info(f"Iteration: {iteration}, average iter time: {avg_time:2f}, total loss {loss.item():4f}")
 
             self.elapsed_iteration_time = 0
+
+
+class WandbCallback(Callback):
+    """Minimal Weights & Biases logging callback for scalar training/validation metrics.
+
+    The callback is opt-in by default: set ``WANDB_ENABLED=1`` or pass
+    ``enabled=True`` in the config. Environment variables override constructor
+    defaults for cluster scripts:
+
+    - ``WANDB_ENTITY``: W&B entity/team, e.g. ``dreamdifferent``.
+    - ``WANDB_PROJECT``: W&B project, e.g. ``mimic-video-so101``.
+    - ``WANDB_MODE``: ``online``, ``offline``, or ``disabled``.
+    - ``WANDB_LOG_EVERY_N``: optional scalar logging frequency in optimizer steps.
+    - ``WANDB_DIR`` / ``WANDB_CACHE_DIR``: scratch-backed W&B directories.
+    """
+
+    def __init__(
+        self,
+        enabled: bool | str | None = None,
+        project: str | None = None,
+        entity: str | None = None,
+        mode: str | None = None,
+        log_every_n: int | None = None,
+    ) -> None:
+        self.enabled = enabled
+        self.project = project
+        self.entity = entity
+        self.mode = mode
+        self.log_every_n = log_every_n
+        self._active = False
+
+    @staticmethod
+    def _as_bool(value: bool | str | None, default: bool = False) -> bool:
+        if value is None:
+            return default
+        if isinstance(value, bool):
+            return value
+        return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
+
+    @staticmethod
+    def _as_scalar(value: Any) -> float | int | None:
+        value = get_local_tensor_if_DTensor(value)
+        if isinstance(value, torch.Tensor):
+            if value.numel() != 1:
+                return None
+            value = value.detach().float().cpu().item()
+        if isinstance(value, bool):
+            return int(value)
+        if isinstance(value, int | float):
+            return value
+        return None
+
+    @classmethod
+    def _flatten_scalars(cls, data: Any, prefix: str = "") -> dict[str, float | int]:
+        scalars: dict[str, float | int] = {}
+        if isinstance(data, dict):
+            for key, value in data.items():
+                key = str(key).replace("/", "_")
+                child_prefix = f"{prefix}/{key}" if prefix else key
+                scalars.update(cls._flatten_scalars(value, child_prefix))
+            return scalars
+        scalar = cls._as_scalar(data)
+        if scalar is not None and prefix:
+            scalars[prefix] = scalar
+        return scalars
+
+    def _wandb_enabled(self) -> bool:
+        env_enabled = os.environ.get("WANDB_ENABLED")
+        enabled = self._as_bool(env_enabled, default=self._as_bool(self.enabled, default=False))
+        mode = os.environ.get("WANDB_MODE", self.mode or "")
+        return enabled and mode.strip().lower() != "disabled"
+
+    def _init_config(self) -> dict[str, Any]:
+        cfg: dict[str, Any] = {}
+        if hasattr(self.config, "job"):
+            cfg["job"] = {
+                "project": getattr(self.config.job, "project", None),
+                "group": getattr(self.config.job, "group", None),
+                "name": getattr(self.config.job, "name", None),
+                "path_local": getattr(self.config.job, "path_local", None),
+            }
+        if hasattr(self.config, "trainer"):
+            cfg["trainer"] = {
+                "max_iter": getattr(self.config.trainer, "max_iter", None),
+                "logging_iter": getattr(self.config.trainer, "logging_iter", None),
+                "validation_iter": getattr(self.config.trainer, "validation_iter", None),
+                "grad_accum_iter": getattr(self.config.trainer, "grad_accum_iter", None),
+                "run_validation": getattr(self.config.trainer, "run_validation", None),
+            }
+        if hasattr(self.config, "optimizer"):
+            cfg["optimizer"] = {"lr": getattr(self.config.optimizer, "lr", None)}
+        return cfg
+
+    @distributed.rank0_only
+    def on_train_start(self, model: ImaginaireModel, iteration: int = 0) -> None:
+        del model
+        if not self._wandb_enabled():
+            return
+        if wandb.run is not None:
+            self._active = True
+            return
+
+        job = self.config.job
+        project = os.environ.get("WANDB_PROJECT") or self.project or getattr(job, "project", "mimic-video")
+        entity = os.environ.get("WANDB_ENTITY") or self.entity or None
+        mode = os.environ.get("WANDB_MODE") or self.mode or "online"
+        name = os.environ.get("WANDB_NAME") or getattr(job, "name", None)
+        group = os.environ.get("WANDB_GROUP") or getattr(job, "group", None)
+        tags = [tag.strip() for tag in os.environ.get("WANDB_TAGS", "").split(",") if tag.strip()]
+
+        path_local = getattr(job, "path_local", None)
+        run_id_path = os.path.join(path_local, "wandb_id.txt") if path_local else None
+        run_id = None
+        if run_id_path and os.path.exists(run_id_path):
+            with open(run_id_path) as f:
+                run_id = f.read().strip() or None
+
+        init_kwargs = dict(
+            project=project,
+            entity=entity,
+            name=name,
+            group=group,
+            tags=tags or None,
+            mode=mode,
+            dir=os.environ.get("WANDB_DIR") or None,
+            config=self._init_config(),
+            id=run_id,
+            resume="allow" if run_id else None,
+        )
+        init_kwargs = {key: value for key, value in init_kwargs.items() if value is not None}
+        run = wandb.init(**init_kwargs)
+        self._active = run is not None
+
+        if self._active and run_id_path and not run_id and wandb.run is not None:
+            os.makedirs(os.path.dirname(run_id_path), exist_ok=True)
+            with open(run_id_path, "w") as f:
+                f.write(wandb.run.id)
+        if self._active:
+            log.info(f"Initialized W&B run: project={project}, entity={entity}, name={name}, mode={mode}")
+
+    def _should_log_step(self, iteration: int) -> bool:
+        env_every_n = os.environ.get("WANDB_LOG_EVERY_N")
+        if env_every_n:
+            every_n = int(env_every_n)
+        else:
+            every_n = self.log_every_n or getattr(self.config.trainer, "logging_iter", 1)
+        return every_n <= 1 or iteration % every_n == 0
+
+    @distributed.rank0_only
+    def on_training_step_end(
+        self,
+        model: ImaginaireModel,
+        data_batch: dict[str, torch.Tensor],
+        output_batch: dict[str, torch.Tensor],
+        loss: torch.Tensor,
+        iteration: int = 0,
+    ) -> None:
+        del model, data_batch
+        if not self._active or wandb.run is None or not self._should_log_step(iteration):
+            return
+        metrics = {"train/loss": self._as_scalar(loss)}
+        metrics.update({f"train/{key}": value for key, value in self._flatten_scalars(output_batch).items()})
+        metrics = {key: value for key, value in metrics.items() if value is not None}
+        if metrics:
+            wandb.log(metrics, step=iteration)
+
+    @distributed.rank0_only
+    def on_validation_step_end(
+        self,
+        model: ImaginaireModel,
+        data_batch: dict[str, torch.Tensor],
+        output_batch: dict[str, torch.Tensor],
+        loss: torch.Tensor,
+        iteration: int = 0,
+    ) -> None:
+        del model, data_batch
+        if not self._active or wandb.run is None:
+            return
+        metrics = {"val/loss": self._as_scalar(loss)}
+        metrics.update({f"val/{key}": value for key, value in self._flatten_scalars(output_batch).items()})
+        metrics = {key: value for key, value in metrics.items() if value is not None}
+        if metrics:
+            wandb.log(metrics, step=iteration)
+
+    @distributed.rank0_only
+    def on_train_end(self, model: ImaginaireModel, iteration: int = 0) -> None:
+        del model, iteration
+        if self._active and wandb.run is not None:
+            wandb.finish()
+            self._active = False
+
+    @distributed.rank0_only
+    def on_app_end(self) -> None:
+        if self._active and wandb.run is not None:
+            wandb.finish()
+            self._active = False
 
 
 class LowPrecisionCallback(Callback):

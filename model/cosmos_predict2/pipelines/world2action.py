@@ -56,6 +56,7 @@ class World2ActionPipeline(BasePipeline):
     def from_config(
         config: World2ActionPipelineConfig,
         dit_path: str = "",
+        allow_partial_dit_load: bool = False,
         device: str = "cuda",
         dtype: torch.dtype = torch.bfloat16,
     ) -> "World2ActionPipeline":
@@ -91,7 +92,35 @@ class World2ActionPipeline(BasePipeline):
                     state_dict_dit_compatible[k[4:]] = v
                 else:
                     state_dict_dit_compatible[k] = v
-            pipe.dit.load_state_dict(state_dict_dit_compatible, strict=False, assign=True)
+
+            if allow_partial_dit_load:
+                model_state_dict = pipe.dit.state_dict()
+                compatible_state_dict = {}
+                skipped_shape_mismatches = []
+                for k, v in state_dict_dit_compatible.items():
+                    if k not in model_state_dict:
+                        continue
+                    if tuple(model_state_dict[k].shape) != tuple(v.shape):
+                        skipped_shape_mismatches.append((k, tuple(v.shape), tuple(model_state_dict[k].shape)))
+                        continue
+                    compatible_state_dict[k] = v
+
+                pipe.dit.to_empty(device=device)
+                pipe.dit.init_weights()
+                incompatible = pipe.dit.load_state_dict(compatible_state_dict, strict=False)
+                log.warning(
+                    "Partially loaded DiT: "
+                    f"loaded={len(compatible_state_dict)}, "
+                    f"missing={len(incompatible.missing_keys)}, "
+                    f"unexpected={len(incompatible.unexpected_keys)}, "
+                    f"shape_mismatches={len(skipped_shape_mismatches)}"
+                )
+                for key, checkpoint_shape, model_shape in skipped_shape_mismatches:
+                    log.warning(
+                        f"Skipping incompatible DiT key {key}: checkpoint={checkpoint_shape}, model={model_shape}"
+                    )
+            else:
+                pipe.dit.load_state_dict(state_dict_dit_compatible, strict=False, assign=True)
             del state_dict, state_dict_dit_compatible
             log.success(f"Successfully loaded DiT from {dit_path}")
 

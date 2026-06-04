@@ -50,7 +50,8 @@ class SO101MimicVideoPolicyConfig:
     experiment_name: str
     video_model_path: pathlib.Path
     action_model_path: pathlib.Path
-    data_dir: pathlib.Path
+    data_dir: pathlib.Path | None = None
+    stats_path: pathlib.Path | None = None
     video_lora_path: pathlib.Path | None = None
     num_val_episodes: int = 10
     device: str = "cuda"
@@ -78,7 +79,9 @@ class MimicVideoSO101Policy:
             raise FileNotFoundError(f"Missing video LoRA checkpoint: {cfg.video_lora_path}")
         if not cfg.action_model_path.exists():
             raise FileNotFoundError(f"Missing action model checkpoint: {cfg.action_model_path}")
-        if not cfg.data_dir.exists():
+        if cfg.stats_path is not None and not cfg.stats_path.exists():
+            raise FileNotFoundError(f"Missing SO-101 stats file: {cfg.stats_path}")
+        if cfg.stats_path is None and (cfg.data_dir is None or not cfg.data_dir.exists()):
             raise FileNotFoundError(f"Missing SO-101 data directory: {cfg.data_dir}")
 
         self.cfg = cfg
@@ -93,7 +96,8 @@ class MimicVideoSO101Policy:
         self.action_dim = int(self.pipeline.world2action_pipeline.dit.out_channels)
 
     def _load_resolved_config(self):
-        os.environ["SO101_DATA_DIR"] = str(self.cfg.data_dir)
+        data_dir = self.cfg.data_dir or pathlib.Path("/tmp/mimic_video_so101_stats_only")
+        os.environ["SO101_DATA_DIR"] = str(data_dir)
         os.environ["SO101_NUM_VAL_EPISODES"] = str(self.cfg.num_val_episodes)
 
         config = make_config()
@@ -132,9 +136,20 @@ class MimicVideoSO101Policy:
         return Video2World2ActionPipeline(video_pipe, action_pipe).cuda().eval()
 
     def _load_or_compute_statistics(self) -> dict:
+        if self.cfg.stats_path is not None:
+            return self._load_statistics_file(self.cfg.stats_path)
         dataset = hydra.utils.instantiate(self.data_config.dataset.dataset, train=True, verbose=False)
         stats = dataset.get_statistics()
         return {key: {k: np.asarray(v, dtype=np.float32) for k, v in value.items()} for key, value in stats.items()}
+
+    @staticmethod
+    def _load_statistics_file(path: pathlib.Path) -> dict:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        stats = payload.get("stats", payload)
+        return {
+            key: {stat_key: np.asarray(stat_value, dtype=np.float32) for stat_key, stat_value in value.items()}
+            for key, value in stats.items()
+        }
 
     def _load_video_lora_adapter(self, video_pipe: Video2WorldPipeline) -> None:
         from peft import LoraConfig, inject_adapter_in_model
@@ -401,7 +416,8 @@ class MimicVideoSO101Policy:
             "action_horizon": self.action_horizon,
             "action_dim": self.action_dim,
             "views": ["front"],
-            "data_dir": str(self.cfg.data_dir),
+            "data_dir": None if self.cfg.data_dir is None else str(self.cfg.data_dir),
+            "stats_path": None if self.cfg.stats_path is None else str(self.cfg.stats_path),
             "video_model_path": str(self.cfg.video_model_path),
             "video_lora_path": None if self.cfg.video_lora_path is None else str(self.cfg.video_lora_path),
             "action_model_path": str(self.cfg.action_model_path),

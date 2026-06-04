@@ -17,8 +17,12 @@ def get_paths(
 
     try:
         with paths_cache.open("rb") as f:
-            return pickle.load(f)
-    except FileNotFoundError:
+            paths = [pathlib.Path(path) for path in pickle.load(f)]
+        if paths and all(path.exists() for path in paths):
+            return paths
+        if verbose:
+            print(f"Ignoring stale paths cache: {paths_cache}")
+    except (FileNotFoundError, ModuleNotFoundError, AttributeError, EOFError, pickle.UnpicklingError):
         pass
 
     paths = sorted(data_dir.glob("**/*.zarr"))

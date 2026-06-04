@@ -8,12 +8,26 @@ The video backbone stays frozen. The SO-101 action decoder uses native 6D joint-
 - `action/lowdim_concat`: future 6D `action`
 - `workspace_rgb`: one camera stream, defaulting to `observation.images.front`
 
+## Path Convention
+
+Use user-independent scratch paths for new runs:
+
+```bash
+export REPO_ROOT="${REPO_ROOT:-/cluster/project/cvg/students/$USER/workspace/mimic-video}"
+export SCRATCH="${SCRATCH:-/cluster/scratch/$USER}"
+export MVS_ROOT="${MVS_ROOT:-$SCRATCH/mimic_video}"
+export MVS_EXPERIMENT="${MVS_EXPERIMENT:-so101-homogeneous-rel}"
+```
+
+Shared data/checkpoints live under `$MVS_ROOT/shared`. Per-experiment runs,
+logs, and eval outputs live under `$MVS_ROOT/experiments/$MVS_EXPERIMENT`.
+
 ## 1. Convert LeRobot dataset to mimic zarr
 
 Run from the repository root:
 
 ```bash
-cd /cluster/project/cvg/students/eugseo/workspace/mimic-video
+cd $REPO_ROOT
 
 python data_preprocessing/action/process_so101_lerobot.py \
   --repo-id dreamdifferent/so101_bottle \
@@ -25,7 +39,7 @@ python data_preprocessing/action/process_so101_lerobot.py \
 For Euler, submit the smoke conversion as a CPU Slurm job instead of using an interactive session:
 
 ```bash
-cd /cluster/project/cvg/students/eugseo/workspace/mimic-video
+cd $REPO_ROOT
 
 sbatch model/scripts/convert_so101_smoke.sbatch
 ```
@@ -33,7 +47,7 @@ sbatch model/scripts/convert_so101_smoke.sbatch
 This defaults to:
 
 ```text
-OUTPUT_DIR=/cluster/scratch/eugseo/mimic_video_data/so101_bottle_smoke
+OUTPUT_DIR=$MVS_ROOT/shared/data/so101_bottle_smoke
 MAX_EPISODES=2
 CAMERA_KEY=observation.images.front
 VIDEO_BACKEND=pyav
@@ -42,7 +56,7 @@ VIDEO_BACKEND=pyav
 Useful overrides:
 
 ```bash
-OUTPUT_DIR=/cluster/scratch/eugseo/mimic_video_data/so101_bottle_front_full \
+OUTPUT_DIR=$MVS_ROOT/shared/data/so101_bottle_front_full \
 MAX_EPISODES= \
 CAMERA_KEY=observation.images.front \
   sbatch model/scripts/convert_so101_smoke.sbatch
@@ -78,7 +92,7 @@ The converter defaults to `--video-backend pyav`. This avoids the `torchcodec` p
 For training, the SO-101 sbatch also prepends `/usr/sbin:/sbin` to `PATH`, because `transformer_engine` may call `ldconfig` during import on Euler. It also points `CUDA_HOME`/`CUDA_PATH` at the venv's NVIDIA package directory and extends `LD_LIBRARY_PATH` so `transformer_engine` and Imaginaire can find `libnvrtc`, `libcudnn`, `libnccl`, and `libcudart.so`. If you run training manually and see an `ldconfig`, `libnvrtc`, or `libcudart.so` error, use:
 
 ```bash
-cd /cluster/project/cvg/students/eugseo/workspace/mimic-video/model
+cd $REPO_ROOT/model
 export PATH="/usr/sbin:/sbin:$PATH"
 export CUDA_HOME="$PWD/.venv/lib/python3.10/site-packages/nvidia"
 export CUDA_PATH="$CUDA_HOME"
@@ -90,7 +104,7 @@ export LD_LIBRARY_PATH="$CUDA_HOME/cuda_runtime/lib:$CUDA_HOME/cuda_nvrtc/lib:$C
 Run T5 precompute on the converted zarr directory:
 
 ```bash
-cd /cluster/project/cvg/students/eugseo/workspace/mimic-video
+cd $REPO_ROOT
 
 python data_preprocessing/action/precompute_t5.py \
   --dataset-path /path/to/data/so101_bottle
@@ -99,7 +113,7 @@ python data_preprocessing/action/precompute_t5.py \
 For Euler, submit the smoke T5 precompute as a GPU Slurm job because the repository T5 encoder runs on CUDA by default:
 
 ```bash
-cd /cluster/project/cvg/students/eugseo/workspace/mimic-video
+cd $REPO_ROOT
 
 sbatch model/scripts/precompute_so101_t5_smoke.sbatch
 ```
@@ -107,14 +121,14 @@ sbatch model/scripts/precompute_so101_t5_smoke.sbatch
 This defaults to:
 
 ```text
-DATA_DIR=/cluster/scratch/eugseo/mimic_video_data/so101_bottle_smoke
+DATA_DIR=$MVS_ROOT/shared/data/so101_bottle_smoke
 GPU=nvidia_a100_80gb_pcie:1
 ```
 
 Useful override:
 
 ```bash
-DATA_DIR=/cluster/scratch/eugseo/mimic_video_data/so101_bottle_smoke \
+DATA_DIR=$MVS_ROOT/shared/data/so101_bottle_smoke \
 PROMPT="pick up the bottle and place it into the container" \
   sbatch model/scripts/precompute_so101_t5_smoke.sbatch
 ```
@@ -122,10 +136,10 @@ PROMPT="pick up the bottle and place it into the container" \
 For a direct shell run on an interactive GPU allocation:
 
 ```bash
-cd /cluster/project/cvg/students/eugseo/workspace/mimic-video/model
+cd $REPO_ROOT/model
 
 python ../data_preprocessing/action/precompute_t5.py \
-  --dataset-path /cluster/scratch/eugseo/mimic_video_data/so101_bottle_smoke
+  --dataset-path $MVS_ROOT/shared/data/so101_bottle_smoke
 ```
 
 ## 3. Training dry run
@@ -133,7 +147,7 @@ python ../data_preprocessing/action/precompute_t5.py \
 The SO-101 config is registered as `data_config=so101`. The converted data directory is read from `SO101_DATA_DIR`:
 
 ```bash
-cd /cluster/project/cvg/students/eugseo/workspace/mimic-video/model
+cd $REPO_ROOT/model
 
 SO101_DATA_DIR=/path/to/data/so101_bottle \
 torchrun --nproc_per_node=1 -m scripts.train \
@@ -159,7 +173,7 @@ torchrun --nproc_per_node=1 -m scripts.train \
 For Euler, prefer submitting even smoke tests through Slurm:
 
 ```bash
-cd /cluster/project/cvg/students/eugseo/workspace/mimic-video
+cd $REPO_ROOT
 
 DATA_DIR=/path/to/data/so101_bottle_smoke \
   sbatch model/scripts/train_so101_smoke.sbatch
@@ -208,14 +222,14 @@ INIT_NAME=partial_bridge_init \
 Logs are written to:
 
 ```text
-/cluster/scratch/eugseo/mimic_video_logs/%x-%j.out
-/cluster/scratch/eugseo/mimic_video_logs/%x-%j.err
+$MVS_ROOT/experiments/so101-homogeneous-rel/logs/%x-%j.out
+$MVS_ROOT/experiments/so101-homogeneous-rel/logs/%x-%j.err
 ```
 
 Training checkpoints and local trainer output are redirected to scratch by default:
 
 ```text
-IMAGINAIRE_OUTPUT_ROOT=/cluster/scratch/eugseo/mimic_video_runs
+IMAGINAIRE_OUTPUT_ROOT=$MVS_ROOT/experiments/so101-homogeneous-rel/runs
 ```
 
 W&B logging is enabled by default in the SO-101 smoke sbatch and points to the team entity:
@@ -224,7 +238,7 @@ W&B logging is enabled by default in the SO-101 smoke sbatch and points to the t
 WANDB_ENTITY=dreamdifferent
 WANDB_PROJECT=mimic-video-so101
 WANDB_MODE=online
-WANDB_DIR=/cluster/scratch/eugseo/mimic_video_wandb
+WANDB_DIR=$MVS_ROOT/experiments/so101-homogeneous-rel/wandb
 ```
 
 Before submitting online W&B jobs, authenticate once in an interactive shell:
@@ -253,7 +267,7 @@ For direct commands, set `SO101_DATA_DIR` because the SO-101 Hydra data config r
 Recommended first smoke run on a single GPU:
 
 ```bash
-cd /cluster/project/cvg/students/eugseo/workspace/mimic-video/model
+cd $REPO_ROOT/model
 
 SO101_DATA_DIR=/path/to/data/so101_bottle \
 CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 -m scripts.train \

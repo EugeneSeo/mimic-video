@@ -3,63 +3,73 @@
 ## Current status
 
 - Branch: `so101-finetuning`
-- Dataset: `dreamdifferent/so101_bottle`
-- Converted full front-camera data:
-  - `/cluster/scratch/eugseo/mimic_video_data/so101_bottle_front_full`
-- Current trained random-init checkpoint:
-  - `/cluster/scratch/eugseo/mimic_video_runs_so101_full_bsz8_20260515_022343/vam/so101/w2a_so101_random_v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused_lr1.000e-04_layer20_bsz8/checkpoints/model/iter_000000250.pt`
+- Active eval experiment: `so101-homogeneous-rel`
+- Dataset source: `dreamdifferent/so101_bottle`
 - Frozen video backbone:
-  - `/cluster/scratch/eugseo/mimic_video_checkpoints/video_backbone/v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused.pt`
-- SO-101 dataset statistics cache:
-  - `/cluster/scratch/eugseo/mimic_video_data/so101_bottle_front_full/.statistics_cache/c408a5f5319d71d04529bb825f448a210cac8585a62a00123e3b3459ae28b350`
+  - `$MVS_ROOT/shared/checkpoints/video_backbone/v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused.pt`
+- SO-101 two-camera video LoRA:
+  - `$MVS_ROOT/experiments/so101-homogeneous-rel/checkpoints/video_lora/checkpoints/model/iter_000001000.pt`
+- SO-101 relative action decoder:
+  - `$MVS_ROOT/experiments/so101-homogeneous-rel/checkpoints/action_decoder_relative/checkpoints/model/iter_000002500.pt`
+- SO-101 relative normalizer stats for dataset-free serving:
+  - `$MVS_ROOT/experiments/so101-homogeneous-rel/checkpoints/action_decoder_relative/stats/so101_relative_stats.json`
+- Optional action zarr for offline dataset eval:
+  - `$MVS_ROOT/shared/data/so101_bottle_action_only_full`
+- Optional hstack 5 fps video data for offline/generated eval:
+  - `$MVS_ROOT/shared/video_data/so101_bottle_front_wrist_hstack_5fps_full`
 
 ## Important interpretation
 
-- The current random-init SO-101 run trained:
+- The active `so101-homogeneous-rel` eval stack uses:
   - frozen Bridge-finetuned video backbone,
-  - randomly initialized SO-101 `world2action` action decoder,
-  - full action-decoder finetuning, not LoRA.
+  - SO-101 two-camera video LoRA,
+  - SO-101 relative `world2action` action decoder,
+  - stats loaded from JSON so the policy server does not need zarr at startup.
 - The `lora_rank256` string in experiment/checkpoint names refers to the frozen Bridge video backbone checkpoint, not the SO-101 action decoder training method.
-- The next more meaningful baseline is `partial_bridge_init`:
-  - load compatible Bridge action-decoder body weights,
-  - randomly initialize shape-incompatible SO-101 6D input/output/action-specific layers,
-  - finetune the whole action decoder.
+- For `DATA_CONFIG=so101_relative`, actions are joint deltas. Deployment should apply `absolute_target = current_joint + predicted_delta`.
 
-## Recommended next command: partial Bridge-init training
+## Recommended current command: policy server
 
-This uses existing Bridge action-decoder information while keeping the same SO-101 6D action setup.
+The wrapper should follow the experiment layout above and use the stats JSON by
+default, avoiding zarr access for online serving:
 
 ```bash
-cd /cluster/project/cvg/students/eugseo/workspace/mimic-video
+cd $REPO_ROOT
 
-DATA_DIR=/cluster/scratch/eugseo/mimic_video_data/so101_bottle_front_full \
-RUNS_DIR=/cluster/scratch/eugseo/mimic_video_runs_so101_partial_bridge_bsz8 \
-INIT_NAME=partial_bridge_init \
-VIDEO_CKPT=v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused \
-GLOBAL_BATCH_SIZE=8 \
-GRAD_ACCUM_ITER=8 \
-MAX_ITER=3000 \
-SAVE_ITER=100 \
-LOGGING_ITER=10 \
-WANDB_LOG_EVERY_N=1 \
-RUN_VALIDATION=false \
-SO101_NUM_VAL_EPISODES=10 \
-WANDB_ENABLED=1 \
-WANDB_ENTITY=dreamdifferent \
-WANDB_PROJECT=mimic-video-so101 \
-  sbatch --time=24:00:00 model/scripts/train_so101_smoke.sbatch
+bash scripts/so101/run_policy_server.sh so101-homogeneous-rel
 ```
 
-Notes:
+Equivalent explicit command:
 
-- `RUNS_DIR` is intentionally fixed so future jobs can resume from the latest checkpoint.
-- `GLOBAL_BATCH_SIZE=8`, `GRAD_ACCUM_ITER=8` gives effective batch 64.
-- `MAX_ITER=3000` is a target; the 24h job may timeout before that, but checkpoints should save and the same command can resume.
-- `WANDB_LOG_EVERY_N=1` logs scalar train loss every optimizer step, while `LOGGING_ITER=10` keeps terminal/device-monitor logs less noisy.
+```bash
+python eval/so101/policy_server.py \
+  --host 127.0.0.1 \
+  --port 8000 \
+  --experiment-name w2a_so101_relative_partial_bridge_init_v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused_lr1.000e-04_layer20_bsz4 \
+  --video-model-path $MVS_ROOT/shared/checkpoints/video_backbone/v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused.pt \
+  --video-lora-path $MVS_ROOT/experiments/so101-homogeneous-rel/checkpoints/video_lora/checkpoints/model/iter_000001000.pt \
+  --action-model-path $MVS_ROOT/experiments/so101-homogeneous-rel/checkpoints/action_decoder_relative/checkpoints/model/iter_000002500.pt \
+  --stats-path $MVS_ROOT/experiments/so101-homogeneous-rel/checkpoints/action_decoder_relative/stats/so101_relative_stats.json \
+  --num-sampling-steps 35 \
+  --stop-video-denoising-step 10
+```
 
 ## Existing eval code inventory
 
-Current checkout does not contain a ready SO-101 mimic-video eval wrapper.
+Current checkout contains SO-101 mimic-video eval wrappers:
+
+- Policy wrapper:
+  - `eval/so101/mimic_video_so101_policy.py`
+- Dataset/offline evaluator:
+  - `eval/so101/offline_eval.py`
+- TCP/websocket server:
+  - `eval/so101/policy_server.py`
+- Synthetic smoke client:
+  - `eval/so101/synthetic_policy_client.py`
+- Experiment-aware shell wrappers:
+  - `scripts/so101/run_policy_server.sh`
+  - `scripts/so101/run_synthetic_client.sh`
+  - `scripts/so101/run_offline_eval.sh`
 
 Relevant mimic-video references:
 
@@ -71,81 +81,90 @@ Relevant mimic-video references:
 Relevant DreamZero infrastructure:
 
 - Generic websocket server/client:
-  - `/cluster/project/cvg/students/eugseo/workspace/dreamzero/eval_utils/policy_server.py`
-  - `/cluster/project/cvg/students/eugseo/workspace/dreamzero/eval_utils/policy_client.py`
+  - `/cluster/project/cvg/students/$USER/workspace/dreamzero/eval_utils/policy_server.py`
+  - `/cluster/project/cvg/students/$USER/workspace/dreamzero/eval_utils/policy_client.py`
 - Current DreamZero sim eval client is DROID-style and assumes 8D actions, so it is not directly compatible with SO-101 6D joint actions.
 
-If a repo update adds SO-101 eval support, prefer that implementation. Otherwise, implement a thin SO-101 policy adapter using the existing mimic-video pipeline loading logic.
+If DreamZero closed-loop eval is used, keep a thin adapter around this policy
+server rather than changing the mimic-video loading path.
 
 ## Evaluation strategy
 
-### Phase 1: offline heldout sanity eval
+### Phase 1: dataset-free server smoke
 
-Before robot/sim closed-loop evaluation, evaluate on heldout SO-101 zarr episodes.
+Before robot/sim closed-loop evaluation, start the policy server from the released
+checkpoints and stats JSON, then run the synthetic client.
 
 Goals:
 
-- Load SO-101 checkpoint and frozen video backbone.
-- Load SO-101 normalizer statistics.
-- Feed heldout front-camera images, 6D joint state, and task prompt.
+- Load frozen video backbone, video LoRA, action decoder, and SO-101 stats JSON.
+- Avoid zarr access during server startup.
+- Feed hstack two-camera images, 6D joint state, and prompt embedding.
 - Confirm model output shape is `(H, 6)`.
+- Confirm outputs are finite and metadata reports action horizon 15 and action dim 6.
+
+This phase validates checkpoint loading, normalization, and request/response I/O
+before any online rollout.
+
+### Phase 2: offline heldout sanity eval
+
+Use `scripts/so101/run_offline_eval.sh` only after the optional action zarr and
+hstack video dataset are present.
+
+Goals:
+
+- Sample heldout SO-101 zarr episodes.
+- Run generated/oracle modes.
 - Compute action MSE/MAE against heldout future 6D joint actions.
-- Save a small qualitative report with:
-  - predicted vs. target joint trajectories,
-  - action magnitude sanity checks,
-  - optional predicted future video preview if useful.
+- Save predicted vs. target joint trajectories and action magnitude checks.
 
-This phase validates I/O and normalization before any online rollout.
+### Phase 3: SO-101 policy adapter
 
-### Phase 2: SO-101 policy adapter
-
-Implement a `MimicVideoSO101Policy` wrapper with:
+The `MimicVideoSO101Policy` wrapper should provide:
 
 - `make_config()` + `experiment=...` override,
 - `Video2WorldPipeline.from_config(...)`,
 - `World2ActionPipeline.from_config(...)`,
-- SO-101 stats loaded into `world2action_pipe.normalizer`,
-- image history of 5 front frames,
+- SO-101 stats loaded into `world2action_pipe.normalizer` from JSON or zarr,
+- image history of 5 hstack frames,
 - current 6D joint-state input,
 - action chunk output `(15, 6)`,
 - configurable number of actions to execute per policy query.
 
-### Phase 3: camera mapping
+### Phase 4: camera mapping
 
 SO-101 provides two images in the LeRobot dataset:
 
 - `observation.images.front`
 - `observation.images.wrist`
 
-But the current mimic-video SO-101 checkpoint was trained on only:
+The active `so101-homogeneous-rel` checkpoint expects the two-camera hstack
+convention:
 
-- `observation.images.front -> workspace_rgb`
+- left half: front camera,
+- right half: wrist camera,
+- full frame passed through compatibility key `observation/images/front`.
 
-Therefore first eval should use:
+Do not replace this with front-only input for this experiment; that belongs to
+the older single-camera baseline.
 
-- external/front image only,
-- wrist image ignored.
-
-Do not use 2-view stitching/grid for the first eval because it is out of training distribution.
-
-### Phase 4: online/sim eval interface
+### Phase 5: online/sim eval interface
 
 If using DreamZero websocket infra, configure the server/client around:
 
-- one external/front camera,
-- no wrist camera required for mimic-video SO-101 v1,
+- one hstack RGB image containing front and wrist cameras,
 - current 6D joint state,
 - output action chunk shape `(N, 6)`,
-- action space: joint-position target.
+- action space: relative 6D joint delta for `so101_relative`.
 
 The existing DROID-style client expects 8D actions, so it needs a SO-101-specific client or adapter.
 
 ## Acceptance checks
 
-- Offline eval loads random-init `iter_250` checkpoint without shape/stat errors.
-- Offline eval loads partial-Bridge-init checkpoint when available.
+- Policy server starts from checkpoint files plus `so101_relative_stats.json` without zarr.
+- Synthetic client receives finite `(15, 6)` action chunks.
+- Offline eval loads the relative action decoder when optional zarr/video data are present.
 - Predicted action shape is `(H, 6)`.
 - Normalizer uses SO-101 statistics, not Bridge statistics.
-- Front-camera image preprocessing matches training: RGB, uint8 input, resized/normalized to mimic-video convention.
-- Eval wrapper ignores wrist image for the first baseline.
-- Closed-loop interface sends only valid 6D SO-101 joint-position commands.
+- Hstack image preprocessing matches training: RGB, uint8 input, front-left/wrist-right.
+- Closed-loop interface sends only valid 6D SO-101 joint commands after converting relative deltas to targets.

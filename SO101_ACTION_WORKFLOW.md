@@ -4,6 +4,21 @@ This document covers SO-101 action zarr conversion, absolute action-decoder
 training, relative action-decoder training, and checkpoint upload conventions.
 Video backbone data preparation is documented in `SO101_VIDEO_WORKFLOW.md`.
 
+## Path Convention
+
+Use user-independent scratch paths for new runs:
+
+```bash
+export REPO_ROOT="${REPO_ROOT:-/cluster/project/cvg/students/$USER/workspace/mimic-video}"
+export SCRATCH="${SCRATCH:-/cluster/scratch/$USER}"
+export MVS_ROOT="${MVS_ROOT:-$SCRATCH/mimic_video}"
+export MVS_EXPERIMENT="${MVS_EXPERIMENT:-so101-homogeneous-rel}"
+```
+
+Shared data and the base video backbone live under `$MVS_ROOT/shared`. Per-run
+video LoRA/action-decoder checkpoints and logs live under
+`$MVS_ROOT/experiments/$MVS_EXPERIMENT`.
+
 ## Representations
 
 Two SO-101 action representations are available:
@@ -35,10 +50,17 @@ Required video checkpoints:
 
 ```text
 Base video backbone:
-/cluster/scratch/eugseo/mimic_video_checkpoints/video_backbone/v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused.pt
+$MVS_ROOT/shared/checkpoints/video_backbone/v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused.pt
 
 SO-101 bottle video LoRA:
-/cluster/scratch/eugseo/mimic_video_runs_so101_2cam_v2w_full_5fps_24h_2gpu_bsz2_acc8/posttraining/video2world_so101_two_camera/v2w_so101_two_camera_lora_rank256_lr1.778e-04_bsz4/checkpoints/model/iter_000001000.pt
+$MVS_ROOT/experiments/so101-homogeneous-rel/checkpoints/video_lora/checkpoints/model/iter_000001000.pt
+```
+
+Download the base Bridge-finetuned Mimic Video backbone with:
+
+```bash
+cd "$REPO_ROOT"
+bash scripts/so101/download_base_backbone.sh "$MVS_EXPERIMENT"
 ```
 
 Hugging Face model repos:
@@ -59,10 +81,17 @@ dreamdifferent/mimic-video-so101-2cam-hstack-5fps-w2a-relative-action-decoder
 The action zarr can omit image frames. During training, the loader reads hstack
 5 fps frames from `SO101_VIDEO_DIR`.
 
-```bash
-cd /cluster/project/cvg/students/eugseo/workspace/mimic-video
+If the temporary HF dataset is available, download it into the shared data root:
 
-OUTPUT_DIR=/cluster/scratch/eugseo/mimic_video_data/so101_bottle_action_only_full \
+```bash
+cd "$REPO_ROOT"
+bash scripts/so101/download_action_zarr.sh "$MVS_EXPERIMENT"
+```
+
+```bash
+cd $REPO_ROOT
+
+OUTPUT_DIR=$MVS_ROOT/shared/data/so101_bottle_action_only_full \
 MAX_EPISODES= \
 SKIP_VIDEO=1 \
 VIDEO_BACKEND=pyav \
@@ -73,7 +102,7 @@ sbatch model/scripts/convert_so101_smoke.sbatch
 Expected count for `so101_bottle`:
 
 ```bash
-find /cluster/scratch/eugseo/mimic_video_data/so101_bottle_action_only_full -maxdepth 2 -name '*.zarr' -type d | wc -l
+find $MVS_ROOT/shared/data/so101_bottle_action_only_full -maxdepth 2 -name '*.zarr' -type d | wc -l
 ```
 
 ## Precompute Action T5
@@ -81,9 +110,9 @@ find /cluster/scratch/eugseo/mimic_video_data/so101_bottle_action_only_full -max
 If the zarr does not already contain `language_embedding`, run:
 
 ```bash
-cd /cluster/project/cvg/students/eugseo/workspace/mimic-video
+cd $REPO_ROOT
 
-DATA_DIR=/cluster/scratch/eugseo/mimic_video_data/so101_bottle_action_only_full \
+DATA_DIR=$MVS_ROOT/shared/data/so101_bottle_action_only_full \
 sbatch model/scripts/precompute_so101_t5_smoke.sbatch
 ```
 
@@ -91,8 +120,8 @@ Quick check:
 
 ```bash
 python - <<'PY'
-import pathlib, zarr
-root = pathlib.Path("/cluster/scratch/eugseo/mimic_video_data/so101_bottle_action_only_full")
+import os, pathlib, zarr
+root = pathlib.Path(os.environ["MVS_ROOT"]) / "shared/data/so101_bottle_action_only_full"
 episodes = sorted(root.glob("*.zarr"))
 count = 0
 for ep in episodes:
@@ -105,16 +134,30 @@ PY
 
 ## Train Absolute Action Decoder
 
-```bash
-cd /cluster/project/cvg/students/eugseo/workspace/mimic-video
+For the current experiment-aware scratch layout, prefer the wrapper and override
+only the representation-specific knobs:
 
-DATA_DIR=/cluster/scratch/eugseo/mimic_video_data/so101_bottle_action_only_full \
-SO101_VIDEO_DIR=/cluster/scratch/eugseo/mimic_video_video_data/so101_bottle_front_wrist_hstack_5fps_full \
+```bash
+cd "$REPO_ROOT"
+DATA_CONFIG=so101 \
+WANDB_PROJECT=mimic-video-so101 \
+bash scripts/so101/submit_action_decoder_train.sh "$MVS_EXPERIMENT"
+```
+
+It fills `REPO_ROOT`, `DATA_DIR`, `SO101_VIDEO_DIR`, `VIDEO_LORA_CKPT`,
+`RUNS_DIR`, Hugging Face cache paths, and Slurm log paths from
+`scripts/so101/lib/paths.sh`.
+
+```bash
+cd $REPO_ROOT
+
+DATA_DIR=$MVS_ROOT/shared/data/so101_bottle_action_only_full \
+SO101_VIDEO_DIR=$MVS_ROOT/shared/video_data/so101_bottle_front_wrist_hstack_5fps_full \
 SO101_VIDEO_FPS=5 \
 DATA_CONFIG=so101 \
 INIT_NAME=partial_bridge_init \
 VIDEO_CKPT=v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused \
-VIDEO_LORA_CKPT=/cluster/scratch/eugseo/mimic_video_runs_so101_2cam_v2w_full_5fps_24h_2gpu_bsz2_acc8/posttraining/video2world_so101_two_camera/v2w_so101_two_camera_lora_rank256_lr1.778e-04_bsz4/checkpoints/model/iter_000001000.pt \
+VIDEO_LORA_CKPT=$MVS_ROOT/experiments/so101-homogeneous-rel/checkpoints/video_lora/checkpoints/model/iter_000001000.pt \
 LR_TAG=1.000e-04 \
 GLOBAL_BATCH_SIZE=4 \
 GRAD_ACCUM_ITER=8 \
@@ -125,7 +168,7 @@ RUN_VALIDATION=false \
 SO101_NUM_VAL_EPISODES=0 \
 WANDB_MODE=online \
 WANDB_PROJECT=mimic-video-so101 \
-RUNS_DIR=/cluster/scratch/eugseo/mimic_video_runs_so101_w2a_bridge_init_so101_v2w_lora_hstack_video_5hz_action \
+RUNS_DIR=$MVS_ROOT/experiments/so101-homogeneous-rel/runs/action_decoder_absolute \
 sbatch --time=24:00:00 model/scripts/train_so101_smoke.sbatch
 ```
 
@@ -138,16 +181,24 @@ GPUs, `GLOBAL_BATCH_SIZE=4`, and `GRAD_ACCUM_ITER=8`:
 
 ## Train Relative Action Decoder
 
-```bash
-cd /cluster/project/cvg/students/eugseo/workspace/mimic-video
+For `so101-homogeneous-rel`, the wrapper defaults to `DATA_CONFIG=so101_relative`
+and `INIT_NAME=partial_bridge_init`:
 
-DATA_DIR=/cluster/scratch/eugseo/mimic_video_data/so101_bottle_action_only_full \
-SO101_VIDEO_DIR=/cluster/scratch/eugseo/mimic_video_video_data/so101_bottle_front_wrist_hstack_5fps_full \
+```bash
+cd "$REPO_ROOT"
+bash scripts/so101/submit_action_decoder_train.sh "$MVS_EXPERIMENT"
+```
+
+```bash
+cd $REPO_ROOT
+
+DATA_DIR=$MVS_ROOT/shared/data/so101_bottle_action_only_full \
+SO101_VIDEO_DIR=$MVS_ROOT/shared/video_data/so101_bottle_front_wrist_hstack_5fps_full \
 SO101_VIDEO_FPS=5 \
 DATA_CONFIG=so101_relative \
 INIT_NAME=partial_bridge_init \
 VIDEO_CKPT=v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused \
-VIDEO_LORA_CKPT=/cluster/scratch/eugseo/mimic_video_runs_so101_2cam_v2w_full_5fps_24h_2gpu_bsz2_acc8/posttraining/video2world_so101_two_camera/v2w_so101_two_camera_lora_rank256_lr1.778e-04_bsz4/checkpoints/model/iter_000001000.pt \
+VIDEO_LORA_CKPT=$MVS_ROOT/experiments/so101-homogeneous-rel/checkpoints/video_lora/checkpoints/model/iter_000001000.pt \
 LR_TAG=1.000e-04 \
 GLOBAL_BATCH_SIZE=4 \
 GRAD_ACCUM_ITER=8 \
@@ -158,14 +209,14 @@ RUN_VALIDATION=false \
 SO101_NUM_VAL_EPISODES=0 \
 WANDB_MODE=online \
 WANDB_PROJECT=mimic-video-so101-relative \
-RUNS_DIR=/cluster/scratch/eugseo/mimic_video_runs_so101_w2a_relative_bridge_init_so101_v2w_lora_hstack_video_5hz_action_24h_part1 \
+RUNS_DIR=$MVS_ROOT/experiments/so101-homogeneous-rel/runs/action_decoder_relative \
 sbatch --time=24:00:00 model/scripts/train_so101_smoke.sbatch
 ```
 
 The first relative run saved:
 
 ```text
-/cluster/scratch/eugseo/mimic_video_runs_so101_w2a_relative_bridge_init_so101_v2w_lora_hstack_video_5hz_action_24h_part1/vam/so101_relative/w2a_so101_relative_partial_bridge_init_v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused_lr1.000e-04_layer20_bsz4/checkpoints/model/iter_000002500.pt
+$MVS_ROOT/experiments/so101-homogeneous-rel/checkpoints/action_decoder_relative/checkpoints/model/iter_000002500.pt
 ```
 
 ## Upload Action Decoder To Hugging Face
@@ -173,11 +224,11 @@ The first relative run saved:
 Example for the relative decoder:
 
 ```bash
-cd /cluster/project/cvg/students/eugseo/workspace/mimic-video/model
+cd $REPO_ROOT/model
 source .venv/bin/activate
 
 REPO_ID=dreamdifferent/mimic-video-so101-2cam-hstack-5fps-w2a-relative-action-decoder
-RUN_DIR=/cluster/scratch/eugseo/mimic_video_runs_so101_w2a_relative_bridge_init_so101_v2w_lora_hstack_video_5hz_action_24h_part1/vam/so101_relative/w2a_so101_relative_partial_bridge_init_v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused_lr1.000e-04_layer20_bsz4
+RUN_DIR=$MVS_ROOT/experiments/so101-homogeneous-rel/runs/action_decoder_relative/vam/so101_relative/w2a_so101_relative_partial_bridge_init_v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused_lr1.000e-04_layer20_bsz4
 
 hf repo create "$REPO_ID" --repo-type model --private || true
 
@@ -194,4 +245,3 @@ hf upload "$REPO_ID" \
 
 Only upload optimizer/scheduler/trainer checkpoints if another run needs to
 resume training exactly from that checkpoint.
-

@@ -13,12 +13,27 @@ right half: wrist camera, resized/padded into 480x320
 The exported mp4s are real 5 fps subsampled videos. We do not only change mp4
 metadata. For SO-101 30 fps sources, conversion keeps every 6th frame.
 
+## Path Convention
+
+Use user-independent scratch paths for new runs:
+
+```bash
+export REPO_ROOT="${REPO_ROOT:-/cluster/project/cvg/students/$USER/workspace/mimic-video}"
+export SCRATCH="${SCRATCH:-/cluster/scratch/$USER}"
+export MVS_ROOT="${MVS_ROOT:-$SCRATCH/mimic_video}"
+export MVS_EXPERIMENT="${MVS_EXPERIMENT:-so101-homogeneous-rel}"
+```
+
+Shared datasets and base checkpoints live under `$MVS_ROOT/shared`. Per-run
+video LoRA checkpoints, logs, and previews live under
+`$MVS_ROOT/experiments/$MVS_EXPERIMENT`.
+
 ## Environment
 
 Run commands from the repository root on Euler:
 
 ```bash
-cd /cluster/project/cvg/students/eugseo/workspace/mimic-video
+cd $REPO_ROOT
 cd model
 source .venv/bin/activate
 cd ..
@@ -33,10 +48,17 @@ Required local checkpoints:
 
 ```text
 Base video backbone:
-/cluster/scratch/eugseo/mimic_video_checkpoints/video_backbone/v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused.pt
+$MVS_ROOT/shared/checkpoints/video_backbone/v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused.pt
 
 SO-101 bottle video LoRA:
-/cluster/scratch/eugseo/mimic_video_runs_so101_2cam_v2w_full_5fps_24h_2gpu_bsz2_acc8/posttraining/video2world_so101_two_camera/v2w_so101_two_camera_lora_rank256_lr1.778e-04_bsz4/checkpoints/model/iter_000001000.pt
+$MVS_ROOT/experiments/so101-homogeneous-rel/checkpoints/video_lora/checkpoints/model/iter_000001000.pt
+```
+
+Download the base Bridge-finetuned Mimic Video backbone with:
+
+```bash
+cd "$REPO_ROOT"
+bash scripts/so101/download_base_backbone.sh "$MVS_EXPERIMENT"
 ```
 
 Hugging Face model repos used so far:
@@ -64,10 +86,10 @@ Multi-object:  dreamdifferent/so101_multi_object_new
 Bottle hstack dataset:
 
 ```bash
-cd /cluster/project/cvg/students/eugseo/workspace/mimic-video
+cd $REPO_ROOT
 
 REPO_ID=dreamdifferent/so101_bottle \
-OUTPUT_DIR=/cluster/scratch/eugseo/mimic_video_video_data/so101_bottle_front_wrist_hstack_5fps_full \
+OUTPUT_DIR=$MVS_ROOT/shared/video_data/so101_bottle_front_wrist_hstack_5fps_full \
 MAX_EPISODES= \
 OVERWRITE=1 \
 SOURCE_FPS=30 \
@@ -80,10 +102,10 @@ sbatch model/scripts/convert_so101_two_camera_video.sbatch
 Multi-object hstack dataset:
 
 ```bash
-cd /cluster/project/cvg/students/eugseo/workspace/mimic-video
+cd $REPO_ROOT
 
 REPO_ID=dreamdifferent/so101_multi_object_new \
-OUTPUT_DIR=/cluster/scratch/eugseo/mimic_video_video_data/so101_multi_object_front_wrist_hstack_5fps_full \
+OUTPUT_DIR=$MVS_ROOT/shared/video_data/so101_multi_object_front_wrist_hstack_5fps_full \
 MAX_EPISODES= \
 OVERWRITE=1 \
 SOURCE_FPS=30 \
@@ -96,7 +118,7 @@ sbatch model/scripts/convert_so101_two_camera_video.sbatch
 Expected counts:
 
 ```bash
-DATASET_DIR=/cluster/scratch/eugseo/mimic_video_video_data/so101_bottle_front_wrist_hstack_5fps_full
+DATASET_DIR=$MVS_ROOT/shared/video_data/so101_bottle_front_wrist_hstack_5fps_full
 
 find "$DATASET_DIR/video" -maxdepth 1 -name '*.mp4' | wc -l
 find "$DATASET_DIR/metas" -maxdepth 1 -name '*.txt' | wc -l
@@ -122,7 +144,7 @@ awk '
 END {
   printf("episodes=%d source_duration=%.3f kept_duration=%.3f max_episode_span_diff=%.3f\n", n, src/30, kept/5, maxdiff);
   print maxline;
-}' /cluster/scratch/eugseo/mimic_video_logs/<convert-job>.out
+}' $MVS_ROOT/experiments/so101-homogeneous-rel/logs/<convert-job>.out
 ```
 
 Episode-level span differences around one 5 fps frame are expected because each
@@ -135,9 +157,9 @@ text in `metas/*.txt`; the text encoder is not trained during video/action
 training.
 
 ```bash
-cd /cluster/project/cvg/students/eugseo/workspace/mimic-video
+cd $REPO_ROOT
 
-DATASET_PATH=/cluster/scratch/eugseo/mimic_video_video_data/so101_bottle_front_wrist_hstack_5fps_full \
+DATASET_PATH=$MVS_ROOT/shared/video_data/so101_bottle_front_wrist_hstack_5fps_full \
 sbatch model/scripts/precompute_so101_two_camera_video_t5.sbatch
 ```
 
@@ -151,6 +173,17 @@ The T5 pickle count should match the mp4 count.
 
 ## Train Video LoRA
 
+For the current experiment-aware scratch layout, prefer the wrapper:
+
+```bash
+cd "$REPO_ROOT"
+bash scripts/so101/submit_video_lora_train.sh "$MVS_EXPERIMENT"
+```
+
+It fills `REPO_ROOT`, `DATASET_DIR`, `RUNS_DIR`,
+`SO101_TWO_CAMERA_INIT_DIT_PATH`, Hugging Face cache paths, and Slurm log paths
+from `scripts/so101/lib/paths.sh`.
+
 The video backbone script uses `PER_GPU_BATCH_SIZE`. Older commands using
 `GLOBAL_BATCH_SIZE` still work as a fallback, but new commands should use
 `PER_GPU_BATCH_SIZE`.
@@ -158,10 +191,10 @@ The video backbone script uses `PER_GPU_BATCH_SIZE`. Older commands using
 Bottle run:
 
 ```bash
-cd /cluster/project/cvg/students/eugseo/workspace/mimic-video
+cd $REPO_ROOT
 
-DATASET_DIR=/cluster/scratch/eugseo/mimic_video_video_data/so101_bottle_front_wrist_hstack_5fps_full \
-RUNS_DIR=/cluster/scratch/eugseo/mimic_video_runs_so101_2cam_v2w_full_5fps_24h_2gpu_bsz2_acc8 \
+DATASET_DIR=$MVS_ROOT/shared/video_data/so101_bottle_front_wrist_hstack_5fps_full \
+RUNS_DIR=$MVS_ROOT/experiments/so101-homogeneous-rel/runs/video_lora \
 MAX_ITER=3000 \
 SAVE_ITER=100 \
 KEEP_LATEST_ONLY=true \
@@ -180,10 +213,10 @@ sbatch --time=24:00:00 model/scripts/train_so101_two_camera_video_backbone_2gpu.
 Multi-object run:
 
 ```bash
-cd /cluster/project/cvg/students/eugseo/workspace/mimic-video
+cd $REPO_ROOT
 
-DATASET_DIR=/cluster/scratch/eugseo/mimic_video_video_data/so101_multi_object_front_wrist_hstack_5fps_full \
-RUNS_DIR=/cluster/scratch/eugseo/mimic_video_runs_so101_multi_object_2cam_v2w_full_5fps_24h_2gpu_bsz2_acc8 \
+DATASET_DIR=$MVS_ROOT/shared/video_data/so101_multi_object_front_wrist_hstack_5fps_full \
+RUNS_DIR=$MVS_ROOT/experiments/so101-multi-object/runs/video_lora \
 MAX_ITER=3000 \
 SAVE_ITER=100 \
 KEEP_LATEST_ONLY=true \
@@ -232,11 +265,11 @@ Video convention `num_sampling_steps=35` and `stop_video_denoising_step=10`.
 ## Render Preview From Checkpoint
 
 ```bash
-cd /cluster/project/cvg/students/eugseo/workspace/mimic-video
+cd $REPO_ROOT
 
-DATASET_DIR=/cluster/scratch/eugseo/mimic_video_video_data/so101_bottle_front_wrist_hstack_5fps_full \
+DATASET_DIR=$MVS_ROOT/shared/video_data/so101_bottle_front_wrist_hstack_5fps_full \
 MODEL_CHECKPOINT=/path/to/iter_00000XXXX.pt \
-OUTPUT_DIR=/cluster/scratch/eugseo/mvs_so101_2cam_v2w_preview \
+OUTPUT_DIR=$MVS_ROOT/experiments/so101-homogeneous-rel/eval_outputs/v2w_preview \
 NUM_SAMPLES=4 \
 NUM_SAMPLING_STEPS=20 \
 NUM_CONDITIONAL_FRAMES=5 \
@@ -245,4 +278,3 @@ sbatch model/scripts/render_so101_two_camera_video_preview.sbatch
 ```
 
 The preview renderer writes side-by-side ground-truth and predicted videos.
-

@@ -35,6 +35,9 @@ $MVS_ROOT/experiments/so101-homogeneous-rel/checkpoints/video_lora/checkpoints/m
 experiment relative action decoder:
 $MVS_ROOT/experiments/so101-homogeneous-rel/checkpoints/action_decoder_relative/checkpoints/model/iter_000002500.pt
 
+experiment relative normalizer stats:
+$MVS_ROOT/experiments/so101-homogeneous-rel/checkpoints/action_decoder_relative/stats/so101_relative_stats.json
+
 shared action zarr:
 $MVS_ROOT/shared/data/so101_bottle_action_only_full
 
@@ -74,8 +77,9 @@ bash scripts/so101/check_assets.sh so101-homogeneous-rel
 `download_base_backbone.sh` downloads the released Bridge-finetuned Mimic Video
 backbone from `jonpai/mimic-video` into the shared checkpoint directory.
 `download_assets.sh` downloads the private SO-101 HF video LoRA and relative
-action decoder into the experiment directory. `download_action_zarr.sh`
-downloads the temporary action-only zarr dataset from
+action decoder, including the dataset-free serving stats JSON, into the
+experiment directory. `download_action_zarr.sh` downloads the temporary
+action-only zarr dataset from
 `dreamdifferent/mimic-video-so101-bottle-action-zarr` into shared data and
 rewrites `paths.pkl` so the dataloader uses the local episode paths. If the zarr
 was downloaded before this wrapper existed, repair it with:
@@ -103,6 +107,15 @@ On a GPU node, terminal 1:
 ```bash
 bash scripts/so101/run_policy_server.sh so101-homogeneous-rel
 ```
+
+By default the server uses:
+
+```text
+$MVS_ROOT/experiments/so101-homogeneous-rel/checkpoints/action_decoder_relative/stats/so101_relative_stats.json
+```
+
+so serving does not require the action zarr. To force dataset-derived stats
+instead, run with `MVS_SERVER_USE_STATS=0` and make sure the action zarr exists.
 
 Terminal 2 synthetic smoke:
 

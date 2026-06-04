@@ -249,7 +249,7 @@ class ImaginaireTrainer:
                     del output_batch, loss, data_batch
                     gc.collect(0)
 
-                    if iteration % self.config.checkpoint.save_iter == 0:
+                    if self.config.checkpoint.save_iter > 0 and iteration % self.config.checkpoint.save_iter == 0:
                         self.checkpointer.save(
                             model,
                             optimizer,
@@ -272,7 +272,11 @@ class ImaginaireTrainer:
                 if _end_training:
                     break
 
-                if min(iteration % 10_000, 10_000 - (iteration % 10_000)) < 100:
+                if (
+                    self.config.checkpoint.save_iter > 0
+                    and iteration >= 100
+                    and min(iteration % 10_000, 10_000 - (iteration % 10_000)) < 100
+                ):
                     self.checkpointer.save(
                         model,
                         optimizer,
@@ -286,7 +290,7 @@ class ImaginaireTrainer:
                     self.validate(model, dataloader_val_cfg, iteration=iteration)
 
         log.success("Done with training.")
-        if iteration % self.config.checkpoint.save_iter != 0:
+        if self.config.checkpoint.save_iter > 0 and iteration % self.config.checkpoint.save_iter != 0:
             self.checkpointer.save(model, optimizer, scheduler, grad_scaler, iteration=iteration)
         self.callbacks.on_train_end(model, iteration=iteration)
         self.checkpointer.finalize()

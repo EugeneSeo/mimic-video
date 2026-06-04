@@ -35,7 +35,7 @@ from cosmos_predict2.configs.config_video2world import (
 )
 from cosmos_predict2.networks.model_weights_stats import WeightTrainingStat
 from cosmos_predict2.pipelines.video2world import Video2WorldPipeline
-from cosmos_predict2.utils.checkpointer import non_strict_load_model
+from cosmos_predict2.utils.checkpointer import load_matching_state_dict_tensors, non_strict_load_model
 from cosmos_predict2.utils.optim_instantiate import get_base_scheduler
 from cosmos_predict2.utils.torch_future import clip_grad_norm_
 from imaginaire.constants import get_cosmos_predict2_video2world_checkpoint
@@ -86,6 +86,8 @@ class Predict2Video2WorldModelConfig:
     loss_scale: float = 10.0
 
     adjust_video_noise: bool = True
+    train_adaln_modulation: bool = True
+    save_trainable_only: bool = False
 
     # This is used for the original way to load models
     model_manager_config: Predict2ModelManagerConfig = Predict2ModelManagerConfig()  # noqa: RUF009
@@ -171,9 +173,10 @@ class Predict2Video2WorldModel(ImaginaireModel):
                     lora_target_modules=config.lora_target_modules,
                     init_lora_weights=config.init_lora_weights,
                 )
-            for name, param in self.named_parameters():
-                if "adaln_modulation" in name:
-                    param.requires_grad_(True)
+            if config.train_adaln_modulation:
+                for name, param in self.named_parameters():
+                    if "adaln_modulation" in name:
+                        param.requires_grad_(True)
             # Enhanced LoRA logging
             self._log_lora_statistics()
         else:
@@ -551,6 +554,13 @@ class Predict2Video2WorldModel(ImaginaireModel):
         # checkpoint should be saved/loaded from Model
         # checkpoint should be loadable from pipeline as well - We don't use Model for inference only jobs.
 
+        if self.config.save_trainable_only:
+            net_state_dict = self._trainable_state_dict(self.pipe.dit, prefix="net.")
+            if self.config.pipe_config.ema.enabled:
+                ema_state_dict = self._trainable_state_dict(self.pipe.dit_ema, prefix="net_ema.")
+                net_state_dict.update(ema_state_dict)
+            return net_state_dict
+
         net_state_dict = self.pipe.dit.state_dict(prefix="net.")
         if self.config.pipe_config.ema.enabled:
             ema_state_dict = self.pipe.dit_ema.state_dict(prefix="net_ema.")
@@ -565,6 +575,13 @@ class Predict2Video2WorldModel(ImaginaireModel):
                 net_state_dict[key] = val.detach().cpu()
 
         return net_state_dict
+
+    def _trainable_state_dict(self, module: torch.nn.Module, prefix: str) -> dict[str, torch.Tensor]:
+        state_dict = collections.OrderedDict()
+        for name, param in module.named_parameters():
+            if param.requires_grad:
+                state_dict[f"{prefix}{name}"] = param.detach().cpu()
+        return state_dict
 
     def load_state_dict(self, state_dict: Mapping[str, Any], strict: bool = True, assign: bool = False):
         """
@@ -590,6 +607,10 @@ class Predict2Video2WorldModel(ImaginaireModel):
 
         state_dict = _reg_state_dict
 
+        if self.config.save_trainable_only and strict:
+            log.warning("Loading a trainable-only checkpoint with strict=False.")
+            strict = False
+
         if strict:
             reg_results: _IncompatibleKeys = self.pipe.dit.load_state_dict(
                 _reg_state_dict, strict=strict, assign=assign
@@ -608,10 +629,27 @@ class Predict2Video2WorldModel(ImaginaireModel):
             )
         else:
             log.critical("load model in non-strict mode")
-            log.critical(non_strict_load_model(self.pipe.dit, _reg_state_dict), rank0_only=False)
+            if self.config.save_trainable_only:
+                incompatible = load_matching_state_dict_tensors(self.pipe.dit, _reg_state_dict)
+                missing_lora_keys = [key for key in incompatible.missing_keys if ".lora_" in key]
+                unexpected_lora_keys = [key for key in incompatible.unexpected_keys if ".lora_" in key]
+                if missing_lora_keys or unexpected_lora_keys or incompatible.incorrect_shapes:
+                    log.warning(
+                        "Trainable-only checkpoint loaded with mismatches: "
+                        f"missing_lora={len(missing_lora_keys)} "
+                        f"unexpected_lora={len(unexpected_lora_keys)} "
+                        f"incorrect_shapes={len(incompatible.incorrect_shapes)}"
+                    )
+                else:
+                    log.success(f"Loaded trainable-only checkpoint tensors: {len(_reg_state_dict)}")
+            else:
+                log.critical(non_strict_load_model(self.pipe.dit, _reg_state_dict), rank0_only=False)
             if self.config.pipe_config.ema.enabled:
                 log.critical("load ema model in non-strict mode")
-                log.critical(non_strict_load_model(self.pipe.dit_ema, _ema_state_dict), rank0_only=False)
+                if self.config.save_trainable_only:
+                    log.critical(load_matching_state_dict_tensors(self.pipe.dit_ema, _ema_state_dict), rank0_only=False)
+                else:
+                    log.critical(non_strict_load_model(self.pipe.dit_ema, _ema_state_dict), rank0_only=False)
 
     # ------------------ public methods ------------------
     def ema_beta(self, iteration: int) -> float:

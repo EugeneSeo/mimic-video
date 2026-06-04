@@ -402,6 +402,7 @@ class Video2WorldPipeline(BasePipeline):
         prompt_embedding: torch.Tensor | None = None,
         negative_prompt: str = "",
         num_latent_conditional_frames: int = 1,
+        fps: float | None = None,
     ):
         """
         Prepares the input data batch for the diffusion model.
@@ -428,7 +429,7 @@ class Video2WorldPipeline(BasePipeline):
             "obs/language_embedding": prompt_embedding
             if prompt_embedding is not None
             else self.encode_prompt(prompt).to(dtype=self.torch_dtype),
-            "fps": torch.randint(16, 32, (self.batch_size,)),  # Random FPS (might be used by model)
+            "fps": torch.full((self.batch_size,), fps) if fps is not None else torch.randint(16, 32, (self.batch_size,)),
             "padding_mask": torch.zeros(self.batch_size, 1, H, W),  # Padding mask (assumed no padding here)
             "num_conditional_frames": num_latent_conditional_frames,  # Specify number of conditional frames
             "is_preprocessed": video.dtype != torch.uint8,
@@ -877,6 +878,7 @@ class Video2WorldPipeline(BasePipeline):
         return_context_at_step: int | None = None,
         return_all_context: bool = False,
         hidden_state_layer_idx: int | None = None,
+        fps: float | None = None,
     ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor]:
         # Prepare the data batch with text embeddings
         data_batch = self._get_data_batch_input(
@@ -885,6 +887,7 @@ class Video2WorldPipeline(BasePipeline):
             prompt_embedding,
             negative_prompt,
             num_latent_conditional_frames=num_latent_conditional_frames,
+            fps=fps,
         )
 
         # preprocess

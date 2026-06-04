@@ -34,6 +34,7 @@ class Video2World2ActionPipeline(nn.Module):
         stop_after_step: int | None = None,
         seed: int = 0,
         use_cuda_graphs: bool = False,
+        fps: float | None = None,
     ) -> torch.Tensor:
         if self.video2world_pipeline.text_guardrail_runner is not None:
             from cosmos_predict2.auxiliary.guardrail.common import presets as guardrail_presets
@@ -57,6 +58,7 @@ class Video2World2ActionPipeline(nn.Module):
             use_cuda_graphs=use_cuda_graphs,
             return_context_at_step=stop_after_step,
             hidden_state_layer_idx=self.world2action_pipeline.config.xattn_layer_idx,
+            fps=fps,
         )
         hidden_state_shape = crossattn_emb.shape
         crossattn_emb = crossattn_emb.reshape(hidden_state_shape[0], -1, hidden_state_shape[-1])

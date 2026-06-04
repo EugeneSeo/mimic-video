@@ -29,5 +29,7 @@ dataset:
   source_component_names: ${..source_component_names}
   policy_io: ${policy_io.policy_io}
   should_include_padded_tails: True
+  external_video_dir: ${oc.env:SO101_VIDEO_DIR,}
+  external_video_fps: ${eval:${oc.env:SO101_VIDEO_FPS,5}}
   seed: 42
   num_val_episodes: ${eval:${oc.env:SO101_NUM_VAL_EPISODES,10}}

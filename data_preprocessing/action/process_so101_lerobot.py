@@ -110,6 +110,7 @@ def _iter_episode_buffers(
     max_episodes: int | None,
     default_task: str,
     fps: float,
+    skip_video: bool,
 ) -> Iterable[EpisodeBuffer]:
     current: EpisodeBuffer | None = None
     emitted = 0
@@ -129,11 +130,12 @@ def _iter_episode_buffers(
                 task=_get_task(dataset, sample, default_task=default_task),
             )
 
-        if camera_key not in sample:
+        if not skip_video and camera_key not in sample:
             available = ", ".join(sorted(k for k in sample if k.startswith("observation.images.")))
             raise KeyError(f"Camera key {camera_key!r} not found. Available image keys: {available}")
 
-        current.images.append(_to_uint8_hwc(sample[camera_key]))
+        if not skip_video:
+            current.images.append(_to_uint8_hwc(sample[camera_key]))
         current.states.append(_to_numpy(sample["observation.state"]).astype(np.float32).reshape(-1))
         current.actions.append(_to_numpy(sample["action"]).astype(np.float32).reshape(-1))
 
@@ -169,16 +171,17 @@ def _write_timestamps(root: zarr.Group, name: str, timestamps_ns: np.ndarray) ->
     root[f"{name}_timestamps"][...] = timestamps_ns
 
 
-def write_episode(buffer: EpisodeBuffer, output_dir: pathlib.Path) -> None:
-    images = np.stack(buffer.images, axis=0).astype(np.uint8)
+def write_episode(buffer: EpisodeBuffer, output_dir: pathlib.Path, *, skip_video: bool) -> None:
+    images = None if skip_video else np.stack(buffer.images, axis=0).astype(np.uint8)
     states = np.stack(buffer.states, axis=0).astype(np.float32)
     actions = np.stack(buffer.actions, axis=0).astype(np.float32)
     timestamps_ns = np.asarray(buffer.timestamps_ns, dtype=np.uint64)
 
-    if not (len(images) == len(states) == len(actions) == len(timestamps_ns)):
+    image_len = len(timestamps_ns) if images is None else len(images)
+    if not (image_len == len(states) == len(actions) == len(timestamps_ns)):
         raise ValueError(
             "Episode arrays have inconsistent lengths: "
-            f"images={len(images)}, states={len(states)}, actions={len(actions)}, timestamps={len(timestamps_ns)}"
+            f"images={image_len}, states={len(states)}, actions={len(actions)}, timestamps={len(timestamps_ns)}"
         )
     if states.shape[-1] != 6 or actions.shape[-1] != 6:
         raise ValueError(f"Expected SO-101 6D state/action, got state={states.shape}, action={actions.shape}.")
@@ -186,8 +189,9 @@ def write_episode(buffer: EpisodeBuffer, output_dir: pathlib.Path) -> None:
     out_path = output_dir / f"episode_{buffer.episode_index:06d}.zarr"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with zarr.open(str(out_path), "w") as root:
-        _write_array(root, "workspace_rgb", images, chunk_t=65)
-        _write_timestamps(root, "workspace_rgb", timestamps_ns)
+        if images is not None:
+            _write_array(root, "workspace_rgb", images, chunk_t=65)
+            _write_timestamps(root, "workspace_rgb", timestamps_ns)
 
         _write_array(root, "joint_state_lowdim", states, chunk_t=1024)
         _write_timestamps(root, "joint_state_lowdim", timestamps_ns)
@@ -232,6 +236,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--fps", type=float, default=30.0, help="Fallback FPS when samples do not include timestamps.")
     parser.add_argument(
+        "--skip-video",
+        action="store_true",
+        help="Write only state/action/language data. Use SO101_VIDEO_DIR at training time for workspace_rgb.",
+    )
+    parser.add_argument(
         "--video-backend",
         default="pyav",
         choices=("pyav", "torchcodec", "video_reader"),
@@ -266,8 +275,9 @@ def main() -> None:
         max_episodes=args.max_episodes,
         default_task=args.default_task,
         fps=args.fps,
+        skip_video=args.skip_video,
     ):
-        write_episode(buffer, args.output_dir)
+        write_episode(buffer, args.output_dir, skip_video=args.skip_video)
         num_written += 1
 
     print(f"Wrote {num_written} episodes to {args.output_dir}")

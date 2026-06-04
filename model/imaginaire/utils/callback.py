@@ -441,6 +441,10 @@ class WandbCallback(Callback):
         self.mode = mode
         self.log_every_n = log_every_n
         self._active = False
+        self._epoch_index: int | None = None
+        self._epoch_loss_sum = 0.0
+        self._epoch_denoise_mse_sum = 0.0
+        self._epoch_count = 0
 
     @staticmethod
     def _as_bool(value: bool | str | None, default: bool = False) -> bool:
@@ -559,6 +563,58 @@ class WandbCallback(Callback):
             every_n = self.log_every_n or getattr(self.config.trainer, "logging_iter", 1)
         return every_n <= 1 or iteration % every_n == 0
 
+    def _reset_epoch_accumulator(self, epoch: int | None = None) -> None:
+        self._epoch_index = epoch
+        self._epoch_loss_sum = 0.0
+        self._epoch_denoise_mse_sum = 0.0
+        self._epoch_count = 0
+
+    def _denoise_mse_from_loss(self, model: ImaginaireModel, loss_value: float | int | None) -> float | None:
+        if loss_value is None:
+            return None
+        loss_scale = getattr(model, "loss_scale", None)
+        if loss_scale in (None, 0):
+            return None
+        return float(loss_value) / float(loss_scale)
+
+    def _log_epoch_accumulator(self, iteration: int) -> None:
+        if not self._active or wandb.run is None or self._epoch_index is None or self._epoch_count == 0:
+            return
+        metrics = {
+            "train_epoch/epoch": self._epoch_index,
+            "train_epoch/loss_mean": self._epoch_loss_sum / self._epoch_count,
+            "train_epoch/num_updates": self._epoch_count,
+        }
+        if self._epoch_denoise_mse_sum > 0:
+            metrics["train_epoch/denoise_mse_mean"] = self._epoch_denoise_mse_sum / self._epoch_count
+        wandb.log(metrics, step=iteration)
+
+    def _update_epoch_accumulator(
+        self,
+        model: ImaginaireModel,
+        output_batch: dict[str, torch.Tensor],
+        loss: torch.Tensor,
+        iteration: int,
+    ) -> None:
+        epoch = self._as_scalar(output_batch.get("epoch"))
+        if epoch is None:
+            return
+        epoch = int(epoch)
+        if self._epoch_index is not None and epoch != self._epoch_index:
+            self._log_epoch_accumulator(iteration)
+            self._reset_epoch_accumulator(epoch)
+        elif self._epoch_index is None:
+            self._reset_epoch_accumulator(epoch)
+
+        loss_value = self._as_scalar(loss)
+        if loss_value is None:
+            return
+        self._epoch_loss_sum += float(loss_value)
+        denoise_mse = self._denoise_mse_from_loss(model, loss_value)
+        if denoise_mse is not None:
+            self._epoch_denoise_mse_sum += denoise_mse
+        self._epoch_count += 1
+
     @distributed.rank0_only
     def on_training_step_end(
         self,
@@ -568,10 +624,17 @@ class WandbCallback(Callback):
         loss: torch.Tensor,
         iteration: int = 0,
     ) -> None:
-        del model, data_batch
-        if not self._active or wandb.run is None or not self._should_log_step(iteration):
+        del data_batch
+        if not self._active or wandb.run is None:
             return
-        metrics = {"train/loss": self._as_scalar(loss)}
+        self._update_epoch_accumulator(model, output_batch, loss, iteration)
+        if not self._should_log_step(iteration):
+            return
+        loss_value = self._as_scalar(loss)
+        metrics = {"train/loss": loss_value}
+        denoise_mse = self._denoise_mse_from_loss(model, loss_value)
+        if denoise_mse is not None:
+            metrics["train/denoise_mse"] = denoise_mse
         metrics.update({f"train/{key}": value for key, value in self._flatten_scalars(output_batch).items()})
         metrics = {key: value for key, value in metrics.items() if value is not None}
         if metrics:
@@ -597,8 +660,9 @@ class WandbCallback(Callback):
 
     @distributed.rank0_only
     def on_train_end(self, model: ImaginaireModel, iteration: int = 0) -> None:
-        del model, iteration
+        del model
         if self._active and wandb.run is not None:
+            self._log_epoch_accumulator(iteration)
             wandb.finish()
             self._active = False
 

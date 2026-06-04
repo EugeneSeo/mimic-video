@@ -38,7 +38,7 @@ from cosmos_predict2.pipelines.video2world import (
     Video2WorldPipelineConfig,
 )
 from cosmos_predict2.pipelines.world2action import World2ActionPipeline
-from cosmos_predict2.utils.checkpointer import non_strict_load_model
+from cosmos_predict2.utils.checkpointer import load_matching_state_dict_tensors, non_strict_load_model
 from cosmos_predict2.utils.optim_instantiate import get_base_scheduler
 from cosmos_predict2.utils.torch_future import clip_grad_norm_
 from imaginaire.lazy_config import LazyDict, instantiate
@@ -68,6 +68,12 @@ class World2ActionModelConfig:
     fsdp_shard_size: int  # 0 means not using fsdp, -1 means set to world size
     data_config: DictConfig
     allow_partial_action_dit_load: bool = False
+    video_lora_dit_path: str = ""
+    video_lora_rank: int = 256
+    video_lora_alpha: int = 32
+    video_lora_target_modules: str = (
+        "q_proj,k_proj,v_proj,output_proj,x_embedder.proj.1,linear_1,linear_2,mlp.layer1,mlp.layer2"
+    )
 
 
 def _dp_mean(x: torch.Tensor) -> torch.Tensor:
@@ -117,6 +123,8 @@ class World2ActionModel(ImaginaireModel):
             dit_path=config.video_dit_path,
             use_text_encoder=False,
         )
+        if config.video_lora_dit_path:
+            self.load_video_lora_adapter()
         self.video2world_pipe.requires_grad_(False)
         if config.video_pipe_config.adjust_video_noise:
             self.video_noise_multiplier = math.sqrt(config.video_pipe_config.state_t)
@@ -259,6 +267,34 @@ class World2ActionModel(ImaginaireModel):
             # Upcast LoRA parameters into fp32
             if param.requires_grad:
                 param.data = param.to(torch.float32)
+
+    def load_video_lora_adapter(self) -> None:
+        log.info(f"Loading frozen video LoRA adapter from {self.config.video_lora_dit_path}")
+        self.add_lora_to_model(
+            self.video2world_pipe.dit,
+            lora_rank=self.config.video_lora_rank,
+            lora_alpha=self.config.video_lora_alpha,
+            lora_target_modules=self.config.video_lora_target_modules,
+            init_lora_weights=False,
+        )
+        state_dict = torch.load(self.config.video_lora_dit_path, map_location="cpu")
+        adapter_state_dict = collections.OrderedDict()
+        for key, value in state_dict.items():
+            if key.startswith("net_ema."):
+                continue
+            if key.startswith("net."):
+                key = key[len("net.") :]
+            if ".lora_" not in key:
+                continue
+            adapter_state_dict[key] = value
+        incompatible = load_matching_state_dict_tensors(self.video2world_pipe.dit, adapter_state_dict)
+        unexpected_lora_keys = [key for key in incompatible.unexpected_keys if ".lora_" in key]
+        if unexpected_lora_keys:
+            log.warning(f"Unexpected video LoRA keys: {unexpected_lora_keys[:20]}")
+        missing_lora_keys = [key for key in incompatible.missing_keys if ".lora_" in key]
+        if missing_lora_keys:
+            log.warning(f"Missing video LoRA keys: {missing_lora_keys[:20]}")
+        log.success(f"Loaded {len(adapter_state_dict)} frozen video LoRA tensors.")
 
     def draw_training_t_and_epsilon(
         self,

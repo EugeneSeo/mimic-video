@@ -35,6 +35,8 @@ class MimicDataset(torch.utils.data.Dataset):
         policy_io: dict,
         source_component_names: dict,
         should_include_padded_tails: bool,
+        external_video_dir: str | None = None,
+        external_video_fps: float = 5.0,
         seed: int = 42,
         num_val_episodes: int = 1,
         train: bool = True,
@@ -42,6 +44,8 @@ class MimicDataset(torch.utils.data.Dataset):
     ) -> None:
         self._data_dir = pathlib.Path(data_dir)
         self._episode_paths = get_paths(self._data_dir, verbose=verbose)
+        self._external_video_dir = pathlib.Path(external_video_dir) if external_video_dir else None
+        self._external_video_fps = float(external_video_fps)
 
         def get_source_component(key: str, spec: dict, prefix: str) -> tuple[str, ObsMeta]:
             source_name = source_component_names.get(f"{prefix}/{key}", key)
@@ -74,6 +78,8 @@ class MimicDataset(torch.utils.data.Dataset):
                     *map(str, self._episode_paths),
                     str(timestep_anchor),
                     str(should_include_padded_tails),
+                    str(self._external_video_dir),
+                    str(self._external_video_fps),
                     str(seed),
                     str(num_val_episodes),
                     inspect.getsource(chunk_reader),
@@ -93,6 +99,8 @@ class MimicDataset(torch.utils.data.Dataset):
             verbose=verbose,
             stats_id=self._stats_id,
             data_dir=self.data_dir,
+            external_video_dir=self._external_video_dir,
+            external_video_fps=self._external_video_fps,
         )
 
         self._threadpool_limits_is_applied = False

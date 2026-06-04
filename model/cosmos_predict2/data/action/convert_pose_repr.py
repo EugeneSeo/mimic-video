@@ -7,6 +7,10 @@ def pose_matrix_absolute_to_relative(abs_poses: np.ndarray, base_pose: np.ndarra
     return np.linalg.inv(base_pose) @ abs_poses
 
 
+def euclidian_absolute_to_relative(abs_values: np.ndarray, base_value: np.ndarray) -> np.ndarray:
+    return abs_values - base_value
+
+
 def convert_to_repr(
     value: np.ndarray,
     obs_type: ObsType,

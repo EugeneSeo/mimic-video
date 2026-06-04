@@ -51,6 +51,7 @@ class Checkpointer:
         self.load_path = config_checkpoint.load_path or None
         self.load_training_state = config_checkpoint.load_training_state
         self.only_load_scheduler_state = config_checkpoint.only_load_scheduler_state
+        self.keep_latest_only = config_checkpoint.keep_latest_only
         self.save_thread = None
 
     def save(
@@ -73,6 +74,7 @@ class Checkpointer:
         self.callbacks.on_save_checkpoint_start(model, iteration)
 
         checkpoint_file = f"iter_{iteration:09}.pt"
+        previous_checkpoint_file = self._read_latest_checkpoint_file()
 
         # Handle optimizer state dict if FSDP is enabled
         is_fsdp = model.config.fsdp_shard_size != 0 and distributed.get_world_size() > 1
@@ -113,7 +115,7 @@ class Checkpointer:
                 self.save_thread = threading.Thread(
                     target=self._save_worker_local,
                     daemon=False,
-                    args=(state_dict, checkpoint_path, distributed.get_rank()),
+                    args=(state_dict, checkpoint_path, distributed.get_rank(), previous_checkpoint_file),
                 )
                 self.save_thread.start()
 
@@ -122,7 +124,13 @@ class Checkpointer:
         self.callbacks.on_save_checkpoint_end(model=None, iteration=iteration)
 
     @misc.timer("checkpoint saving (local)")
-    def _save_worker_local(self, state_dict: dict[str, torch.Tensor], checkpoint_path: str, rank: int = 0) -> None:
+    def _save_worker_local(
+        self,
+        state_dict: dict[str, torch.Tensor],
+        checkpoint_path: str,
+        rank: int = 0,
+        previous_checkpoint_file: str | None = None,
+    ) -> None:
         """Worker to save checkpoint to local disk, spawned with a child thread (runs in parallel with the training).
 
         Args:
@@ -132,15 +140,29 @@ class Checkpointer:
         """
         os.makedirs(os.path.dirname(checkpoint_path), exist_ok=True)
         checkpoint_file = os.path.basename(checkpoint_path)
+        checkpoint_folder = os.path.basename(os.path.dirname(checkpoint_path))
         try:
             torch.save(state_dict, checkpoint_path)
-            if rank == 0:
+            if rank == 0 and checkpoint_folder == "trainer":
                 self._write_latest_checkpoint_file(checkpoint_file)
+                if self.keep_latest_only:
+                    self._remove_previous_checkpoint(previous_checkpoint_file, checkpoint_file)
             log.success(f"Saved checkpoint (local): {checkpoint_path}")
             iteration = int(checkpoint_file.replace("iter_", "").replace(".pt", ""))
             self.callbacks.on_save_checkpoint_success(iteration=iteration, checkpoint_path=checkpoint_path)
         except Exception as e:
             log.exception(f"Checkpoint failed to save (local): {e}")
+
+    def _remove_previous_checkpoint(self, previous_checkpoint_file: str | None, checkpoint_file: str) -> None:
+        if previous_checkpoint_file is None or previous_checkpoint_file == checkpoint_file:
+            return
+        for folder in ["model", "optim", "scheduler", "trainer"]:
+            path = os.path.join(self.checkpoint_dir_local, folder, previous_checkpoint_file)
+            fused_path = path.replace(".pt", "_fused.pt")
+            for candidate in [path, fused_path]:
+                if os.path.exists(candidate):
+                    os.remove(candidate)
+                    log.info(f"Removed old checkpoint (local): {candidate}")
 
     @misc.timer("checkpoint loading")
     def load(

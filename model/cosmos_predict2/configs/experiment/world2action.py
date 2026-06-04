@@ -147,18 +147,19 @@ def register_so101_experiment(
     video_ckpt: str,
     lr: float,
     bsz: int,
+    data_config: str = "so101",
     action_dit_path: str = "",
 ) -> None:
     cfg = copy.deepcopy(BASE)
     cfg["defaults"][0]["override /model"] = video_ckpt
     cfg["defaults"][1]["override /world2action_pipe"] = "so101"
-    cfg["defaults"][2]["override /data_config"] = "so101"
+    cfg["defaults"][2]["override /data_config"] = data_config
     cfg["model"]["config"]["pipe_config"]["xattn_layer_idx"] = 20
     cfg["model"]["config"]["action_dit_path"] = action_dit_path
     cfg["model"]["config"]["allow_partial_action_dit_load"] = bool(action_dit_path)
     cfg["optimizer"]["lr"] = lr
-    cfg["job"]["group"] = "so101"
-    cfg["job"]["name"] = f"w2a_so101_{init_name}_{video_ckpt}_lr{lr:.3e}_layer20_bsz{bsz}"
+    cfg["job"]["group"] = data_config
+    cfg["job"]["name"] = f"w2a_{data_config}_{init_name}_{video_ckpt}_lr{lr:.3e}_layer20_bsz{bsz}"
     cfg["dataloader_train"] = {"batch_size": L(get_local_batch_size)(global_bsz=bsz)}
     cfg["trainer"]["grad_accum_iter"] = max(1, 64 // bsz)
     cfg["trainer"]["max_iter"] = 30_000
@@ -174,13 +175,25 @@ def register_so101_experiment(
     )
 
 
-for so101_video_ckpt, so101_lr, so101_bsz in it.product(SO101_VIDEO_CKPTS, [1e-4, 3e-4], [4, 8, 16, 32, 64]):
-    register_so101_experiment(init_name="random", video_ckpt=so101_video_ckpt, lr=so101_lr, bsz=so101_bsz)
+for so101_data_config, so101_video_ckpt, so101_lr, so101_bsz in it.product(
+    ["so101", "so101_relative"],
+    SO101_VIDEO_CKPTS,
+    [1e-4, 3e-4],
+    [4, 8, 16, 32, 64],
+):
+    register_so101_experiment(
+        init_name="random",
+        video_ckpt=so101_video_ckpt,
+        lr=so101_lr,
+        bsz=so101_bsz,
+        data_config=so101_data_config,
+    )
     register_so101_experiment(
         init_name="partial_bridge_init",
         video_ckpt=so101_video_ckpt,
         lr=so101_lr,
         bsz=so101_bsz,
+        data_config=so101_data_config,
         action_dit_path=str(SO101_ACTION_DECODER_PARTIAL_INITS[so101_video_ckpt].resolve()),
     )
 

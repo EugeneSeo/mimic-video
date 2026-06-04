@@ -22,6 +22,7 @@ module load eth_proxy
 #   MAX_EPISODES=2 | empty for full dataset
 #   OUTPUT_DIR=/cluster/scratch/eugseo/mimic_video_data/so101_bottle_smoke
 #   CAMERA_KEY=observation.images.front | observation.images.wrist
+#   SKIP_VIDEO=1  # write only state/action/language; use SO101_VIDEO_DIR during training
 #   VIDEO_BACKEND=pyav | torchcodec | video_reader
 #   OVERWRITE=1
 ################################################################################
@@ -32,6 +33,7 @@ LOG_DIR="${LOG_DIR:-/cluster/scratch/eugseo/mimic_video_logs}"
 
 REPO_ID="${REPO_ID:-dreamdifferent/so101_bottle}"
 CAMERA_KEY="${CAMERA_KEY:-observation.images.front}"
+SKIP_VIDEO="${SKIP_VIDEO:-0}"
 VIDEO_BACKEND="${VIDEO_BACKEND:-pyav}"
 OUTPUT_DIR="${OUTPUT_DIR:-/cluster/scratch/eugseo/mimic_video_data/so101_bottle_smoke}"
 # Use `${VAR-2}` rather than `${VAR:-2}` so `MAX_EPISODES=` means full dataset.
@@ -70,6 +72,7 @@ echo "Job id: ${SLURM_JOB_ID:-manual}"
 echo "Repo: $REPO_ROOT"
 echo "Repo id: $REPO_ID"
 echo "Camera key: $CAMERA_KEY"
+echo "Skip video: $SKIP_VIDEO"
 echo "Video backend: $VIDEO_BACKEND"
 echo "Output dir: $OUTPUT_DIR"
 echo "Max episodes: ${MAX_EPISODES:-full}"
@@ -84,6 +87,10 @@ CONVERT_CMD=(
   --camera-key "$CAMERA_KEY"
   --video-backend "$VIDEO_BACKEND"
 )
+
+if [ "$SKIP_VIDEO" = "1" ]; then
+  CONVERT_CMD+=(--skip-video)
+fi
 
 if [ -n "$MAX_EPISODES" ]; then
   CONVERT_CMD+=(--max-episodes "$MAX_EPISODES")

@@ -266,6 +266,8 @@ class CheckpointConfig:
     dcp_async_mode_enabled: bool = False
     # Save the checkpoint every N iterations.
     save_iter: int = 999999999
+    # Keep only the latest complete checkpoint. Older checkpoint files are removed after a newer trainer state is saved.
+    keep_latest_only: bool = False
     # Path of model weights to resume the checkpoint from.
     load_path: str = ""
     # Whether to load the training states (optimizer/scheduler/grad-scaler) from the checkpoint path.

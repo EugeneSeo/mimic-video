@@ -20,6 +20,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
+from torch.nn.attention import SDPBackend, sdpa_kernel
 
 from cosmos_predict2.tokenizers.interface import VideoTokenizerInterface
 from imaginaire.utils import log
@@ -31,6 +32,7 @@ __all__ = [
 ]
 
 CACHE_T = 2
+TOKENIZER_SDPA_BACKENDS = [SDPBackend.MATH]
 
 
 class CausalConv3d(nn.Conv3d):
@@ -243,11 +245,15 @@ class AttentionBlock(nn.Module):
         q, k, v = self.to_qkv(x).reshape(b * t, 1, c * 3, -1).permute(0, 1, 3, 2).contiguous().chunk(3, dim=-1)
 
         # apply attention
-        x = F.scaled_dot_product_attention(
-            q,
-            k,
-            v,
-        )
+        # The tokenizer attention head dim is 384, which is unsupported by
+        # Flash/CuDNN SDPA on some GPUs such as 4090. Force the math backend so
+        # repeated online inference does not fail when fused kernels are absent.
+        with sdpa_kernel(backends=TOKENIZER_SDPA_BACKENDS):
+            x = F.scaled_dot_product_attention(
+                q,
+                k,
+                v,
+            )
         x = x.squeeze(1).permute(0, 2, 1).reshape(b * t, c, h, w)
 
         # output

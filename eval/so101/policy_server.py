@@ -36,6 +36,7 @@ class ServerArgs:
     video_lora_path: pathlib.Path | None = None
     action_model_path: pathlib.Path = DEFAULT_ACTION_CKPT
     data_dir: pathlib.Path = DEFAULT_DATA_DIR
+    stats_path: pathlib.Path | None = None
     num_val_episodes: int = 10
     num_sampling_steps: int = 35
     stop_video_denoising_step: int = 10
@@ -54,6 +55,12 @@ def parse_args() -> ServerArgs:
     parser.add_argument("--video-lora-path", type=pathlib.Path, default=None)
     parser.add_argument("--action-model-path", type=pathlib.Path, default=DEFAULT_ACTION_CKPT)
     parser.add_argument("--data-dir", type=pathlib.Path, default=DEFAULT_DATA_DIR)
+    parser.add_argument(
+        "--stats-path",
+        type=pathlib.Path,
+        default=None,
+        help="Load normalizer statistics from JSON and skip dataset/zarr access for online prediction.",
+    )
     parser.add_argument("--num-val-episodes", type=int, default=ServerArgs.num_val_episodes)
     parser.add_argument("--num-sampling-steps", type=int, default=ServerArgs.num_sampling_steps)
     parser.add_argument("--stop-video-denoising-step", type=int, default=ServerArgs.stop_video_denoising_step)
@@ -77,7 +84,8 @@ class SO101PolicyServer:
                 video_model_path=args.video_model_path,
                 video_lora_path=args.video_lora_path,
                 action_model_path=args.action_model_path,
-                data_dir=args.data_dir,
+                data_dir=None if args.stats_path is not None else args.data_dir,
+                stats_path=args.stats_path,
                 num_val_episodes=args.num_val_episodes,
                 num_sampling_steps=args.num_sampling_steps,
                 stop_video_denoising_step=args.stop_video_denoising_step,

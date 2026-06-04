@@ -48,6 +48,9 @@ Absolute action decoder:
 Relative action decoder:
 /cluster/scratch/eugseo/mimic_video_runs_so101_w2a_relative_bridge_init_so101_v2w_lora_hstack_video_5hz_action_24h_part1/vam/so101_relative/w2a_so101_relative_partial_bridge_init_v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused_lr1.000e-04_layer20_bsz4/checkpoints/model/iter_000002500.pt
 
+Relative action normalizer stats:
+stats/so101_relative_stats.json in the relative action decoder HF repo
+
 Action zarr:
 /cluster/scratch/eugseo/mimic_video_data/so101_bottle_action_only_full
 
@@ -154,17 +157,21 @@ This writes `videos/*_input_context.mp4`, `videos/*_gt_future.mp4`,
 
 ## Prediction Server
 
+For robot-style single-step tests, prefer `--stats-path` so the server does not
+need the SO-101 zarr. The stats file contains only action/state normalization
+statistics and can live next to the action decoder checkpoint.
+
 Terminal 1:
 
 ```bash
 python eval/so101/policy_server.py \
   --host 127.0.0.1 \
   --port 8000 \
-  --experiment-name w2a_so101_partial_bridge_init_v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused_lr1.000e-04_layer20_bsz4 \
+  --experiment-name w2a_so101_relative_partial_bridge_init_v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused_lr1.000e-04_layer20_bsz4 \
   --video-model-path /cluster/scratch/eugseo/mimic_video_checkpoints/video_backbone/v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused.pt \
   --video-lora-path /cluster/scratch/eugseo/mimic_video_runs_so101_2cam_v2w_full_5fps_24h_2gpu_bsz2_acc8/posttraining/video2world_so101_two_camera/v2w_so101_two_camera_lora_rank256_lr1.778e-04_bsz4/checkpoints/model/iter_000001000.pt \
-  --action-model-path /cluster/scratch/eugseo/mimic_video_runs_so101_w2a_bridge_init_so101_v2w_lora_hstack_video_5hz_action_resume_to_2000/vam/so101/w2a_so101_partial_bridge_init_v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused_lr1.000e-04_layer20_bsz4/checkpoints/model/iter_000002000.pt \
-  --data-dir /cluster/scratch/eugseo/mimic_video_data/so101_bottle_action_only_full \
+  --action-model-path /cluster/scratch/eugseo/mimic_video_runs_so101_w2a_relative_bridge_init_so101_v2w_lora_hstack_video_5hz_action_24h_part1/vam/so101_relative/w2a_so101_relative_partial_bridge_init_v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused_lr1.000e-04_layer20_bsz4/checkpoints/model/iter_000002500.pt \
+  --stats-path /path/to/stats/so101_relative_stats.json \
   --num-val-episodes 0 \
   --num-sampling-steps 35 \
   --stop-video-denoising-step 10
@@ -215,4 +222,3 @@ If the server is not started with `--load-text-encoder`, the client must send
 For `DATA_CONFIG=so101`, actions are absolute joint targets. For
 `DATA_CONFIG=so101_relative`, actions are joint deltas and deployment should use
 `absolute_target = current_joint + predicted_delta`.
-

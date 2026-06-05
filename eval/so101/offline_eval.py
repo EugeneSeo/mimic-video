@@ -45,13 +45,13 @@ _DEFAULT_ROOT = _default_mimic_video_root()
 _DEFAULT_EXPERIMENT_ROOT = pathlib.Path(
     os.environ.get(
         "MIMIC_VIDEO_EXPERIMENT_ROOT",
-        os.environ.get("MVS_EXP_ROOT", _DEFAULT_ROOT / "experiments" / os.environ.get("MVS_EXPERIMENT", "so101-homogeneous-rel")),
+        os.environ.get("MVS_EXP_ROOT", _DEFAULT_ROOT / "experiments" / os.environ.get("MVS_EXPERIMENT", "so101-homogeneous-delta30")),
     )
 )
 
 DEFAULT_EXPERIMENT = os.environ.get(
     "POLICY_EXPERIMENT_NAME",
-    "w2a_so101_relative_partial_bridge_init_"
+    "w2a_so101_delta_30hz_partial_bridge_init_"
     "v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused_"
     "lr1.000e-04_layer20_bsz4",
 )
@@ -64,7 +64,7 @@ DEFAULT_VIDEO_CKPT = _env_path(
 DEFAULT_ACTION_CKPT = _env_path(
     "MVS_ACTION_MODEL_PATH",
     "MIMIC_VIDEO_ACTION_MODEL_PATH",
-    default=_DEFAULT_EXPERIMENT_ROOT / "checkpoints/action_decoder_relative/checkpoints/model/iter_000002500.pt",
+    default=_DEFAULT_EXPERIMENT_ROOT / "checkpoints/action_decoder_delta30/checkpoints/model/iter_000005000.pt",
 )
 DEFAULT_DATA_DIR = _env_path(
     "MVS_SHARED_ACTION_DATA_DIR",

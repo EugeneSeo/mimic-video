@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/lib/paths.sh"
 
-mvs_load_paths "${1:-${MVS_EXPERIMENT:-so101-homogeneous-rel}}"
+mvs_load_paths "${1:-${MVS_EXPERIMENT:-so101-homogeneous-delta30}}"
 mvs_create_layout
 
 missing=0
@@ -71,7 +71,7 @@ except Exception as exc:
 bad = [path for path in paths if not pathlib.Path(path).exists()]
 if bad:
     print(f"WARN    action zarr paths cache has {len(bad)} stale path(s): {paths_cache}")
-    print("        repair with: bash scripts/so101/repair_action_zarr_paths.sh so101-homogeneous-rel")
+    print("        repair with: bash scripts/so101/repair_action_zarr_paths.sh <experiment>")
 PY
 fi
 

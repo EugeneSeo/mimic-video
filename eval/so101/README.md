@@ -19,24 +19,24 @@ Default setup:
 
 ```bash
 export SCRATCH="${SCRATCH:-/cluster/scratch/$USER}"
-export MVS_EXPERIMENT="${MVS_EXPERIMENT:-so101-homogeneous-rel}"
+export MVS_EXPERIMENT="${MVS_EXPERIMENT:-so101-homogeneous-delta30}"
 export MVS_ROOT="${MVS_ROOT:-$SCRATCH/mimic_video}"
 ```
 
-The default `so101-homogeneous-rel` experiment uses:
+The default `so101-homogeneous-delta30` experiment uses:
 
 ```text
 shared base video backbone:
 $MVS_ROOT/shared/checkpoints/video_backbone/v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused.pt
 
 experiment video LoRA:
-$MVS_ROOT/experiments/so101-homogeneous-rel/checkpoints/video_lora/checkpoints/model/iter_000001000.pt
+$MVS_ROOT/experiments/so101-homogeneous-delta30/checkpoints/video_lora/checkpoints/model/iter_000001000.pt
 
-experiment relative action decoder:
-$MVS_ROOT/experiments/so101-homogeneous-rel/checkpoints/action_decoder_relative/checkpoints/model/iter_000002500.pt
+experiment 30Hz incremental-delta action decoder:
+$MVS_ROOT/experiments/so101-homogeneous-delta30/checkpoints/action_decoder_delta30/checkpoints/model/iter_000005000.pt
 
-experiment relative normalizer stats:
-$MVS_ROOT/experiments/so101-homogeneous-rel/checkpoints/action_decoder_relative/stats/so101_relative_stats.json
+experiment 30Hz incremental-delta normalizer stats:
+$MVS_ROOT/experiments/so101-homogeneous-delta30/checkpoints/action_decoder_delta30/stats/so101_delta_30hz_stats.json
 
 shared action zarr:
 $MVS_ROOT/shared/data/so101_bottle_action_only_full
@@ -63,20 +63,20 @@ right half: wrist camera
 From the repository root:
 
 ```bash
-bash scripts/so101/setup_hf_cli.sh so101-homogeneous-rel
+bash scripts/so101/setup_hf_cli.sh so101-homogeneous-delta30
 export PATH="$MVS_ROOT/shared/uv-bin:$PATH"
 export HF_HOME="$MVS_ROOT/shared/hf-home"
 
 hf auth login
-bash scripts/so101/download_base_backbone.sh so101-homogeneous-rel
-bash scripts/so101/download_assets.sh so101-homogeneous-rel
-bash scripts/so101/download_action_zarr.sh so101-homogeneous-rel
-bash scripts/so101/check_assets.sh so101-homogeneous-rel
+bash scripts/so101/download_base_backbone.sh so101-homogeneous-delta30
+bash scripts/so101/download_assets.sh so101-homogeneous-delta30
+bash scripts/so101/download_action_zarr.sh so101-homogeneous-delta30
+bash scripts/so101/check_assets.sh so101-homogeneous-delta30
 ```
 
 `download_base_backbone.sh` downloads the released Bridge-finetuned Mimic Video
 backbone from `jonpai/mimic-video` into the shared checkpoint directory.
-`download_assets.sh` downloads the private SO-101 HF video LoRA and relative
+`download_assets.sh` downloads the private SO-101 HF video LoRA and delta30
 action decoder, including the dataset-free serving stats JSON, into the
 experiment directory. `download_action_zarr.sh` downloads the temporary
 action-only zarr dataset from
@@ -85,7 +85,7 @@ rewrites `paths.pkl` so the dataloader uses the local episode paths. If the zarr
 was downloaded before this wrapper existed, repair it with:
 
 ```bash
-bash scripts/so101/repair_action_zarr_paths.sh so101-homogeneous-rel
+bash scripts/so101/repair_action_zarr_paths.sh so101-homogeneous-delta30
 ```
 
 ## Eval Settings
@@ -105,13 +105,13 @@ are only lightweight visual progress checks.
 On a GPU node, terminal 1:
 
 ```bash
-bash scripts/so101/run_policy_server.sh so101-homogeneous-rel
+bash scripts/so101/run_policy_server.sh so101-homogeneous-delta30
 ```
 
 By default the server uses:
 
 ```text
-$MVS_ROOT/experiments/so101-homogeneous-rel/checkpoints/action_decoder_relative/stats/so101_relative_stats.json
+$MVS_ROOT/experiments/so101-homogeneous-delta30/checkpoints/action_decoder_delta30/stats/so101_delta_30hz_stats.json
 ```
 
 so serving does not require the action zarr. To force dataset-derived stats
@@ -120,13 +120,13 @@ instead, run with `MVS_SERVER_USE_STATS=0` and make sure the action zarr exists.
 Terminal 2 synthetic smoke:
 
 ```bash
-bash scripts/so101/run_synthetic_client.sh so101-homogeneous-rel
+bash scripts/so101/run_synthetic_client.sh so101-homogeneous-delta30
 ```
 
 Expected smoke result:
 
 ```text
-actions.shape=(15, 6)
+actions.shape=(90, 6)
 finite values
 no server error
 ```
@@ -141,13 +141,13 @@ Generated mode, real SO-101 zarr samples:
 MVS_EVAL_MODE=generated \
 MVS_EVAL_SPLIT=val \
 MVS_EVAL_NUM_SAMPLES=4 \
-bash scripts/so101/run_offline_eval.sh so101-homogeneous-rel
+bash scripts/so101/run_offline_eval.sh so101-homogeneous-delta30
 ```
 
 Outputs go under:
 
 ```text
-$MVS_ROOT/experiments/so101-homogeneous-rel/eval_outputs/generated_val_4_35_10
+$MVS_ROOT/experiments/so101-homogeneous-delta30/eval_outputs/generated_val_4_35_10
 ```
 
 Expected files include:
@@ -167,7 +167,7 @@ MVS_EVAL_MODE=generated \
 MVS_EVAL_SPLIT=val \
 MVS_EVAL_NUM_SAMPLES=2 \
 MVS_DUMP_VIDEOS=1 \
-bash scripts/so101/run_offline_eval.sh so101-homogeneous-rel
+bash scripts/so101/run_offline_eval.sh so101-homogeneous-delta30
 ```
 
 ## Request Schema
@@ -193,10 +193,10 @@ If the server is not started with `--load-text-encoder`, the client must send
     "actions": np.ndarray,  # shape (action_horizon, 6)
     "server_timing": {...},
     "metadata": {
-        "action_horizon": 15,
+        "action_horizon": 90,
         "action_dim": 6,
-        "action_target_frequency": 5,
-        "action_delta_mode": "absolute_target",
+        "action_target_frequency": 30,
+        "action_delta_mode": "incremental_delta",
     },
 }
 ```

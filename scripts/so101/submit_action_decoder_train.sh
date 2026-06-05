@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/lib/paths.sh"
 
-experiment="${MVS_EXPERIMENT:-so101-homogeneous-rel}"
+experiment="${MVS_EXPERIMENT:-so101-homogeneous-delta30}"
 if [[ $# -gt 0 && "$1" != --* ]]; then
   experiment="$1"
   shift
@@ -23,13 +23,24 @@ export DATA_DIR="${DATA_DIR:-${MVS_SHARED_ACTION_DATA_DIR}}"
 export SO101_VIDEO_DIR="${SO101_VIDEO_DIR:-${MVS_SHARED_VIDEO_DATA_DIR}}"
 export SO101_VIDEO_FPS="${SO101_VIDEO_FPS:-5}"
 export VIDEO_LORA_CKPT="${VIDEO_LORA_CKPT:-${MVS_VIDEO_LORA_PATH}}"
-if [[ "${ACTION_DECODER_KIND}" == "absolute" ]]; then
-  default_data_config="so101"
-  default_wandb_project="mimic-video-so101"
-else
-  default_data_config="so101_relative"
-  default_wandb_project="mimic-video-so101-relative"
-fi
+case "${ACTION_DECODER_KIND}" in
+  absolute)
+    default_data_config="so101"
+    default_wandb_project="mimic-video-so101"
+    ;;
+  delta)
+    default_data_config="so101_delta"
+    default_wandb_project="mimic-video-so101-w2a"
+    ;;
+  delta_30hz)
+    default_data_config="so101_delta_30hz"
+    default_wandb_project="mimic-video-so101-w2a"
+    ;;
+  relative|*)
+    default_data_config="so101_relative"
+    default_wandb_project="mimic-video-so101-relative"
+    ;;
+esac
 export DATA_CONFIG="${DATA_CONFIG:-${default_data_config}}"
 export INIT_NAME="${INIT_NAME:-partial_bridge_init}"
 export VIDEO_CKPT="${VIDEO_CKPT:-v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused}"
@@ -40,8 +51,21 @@ export WANDB_PROJECT="${WANDB_PROJECT:-${default_wandb_project}}"
 
 mkdir -p "${MVS_LOG_DIR}" "${RUNS_DIR}" "${WANDB_ROOT_DIR}"
 
-sbatch \
+cmd=(
+  sbatch
   --output="${MVS_LOG_DIR}/%x-%j.out" \
   --error="${MVS_LOG_DIR}/%x-%j.err" \
   "$@" \
   "${REPO_ROOT}/model/scripts/train_so101_smoke.sbatch"
+)
+
+printf 'Command:'
+printf ' %q' "${cmd[@]}"
+printf '\n'
+
+if [[ "${DRY_RUN:-0}" == "1" ]]; then
+  echo "DRY_RUN=1; not submitting."
+  exit 0
+fi
+
+"${cmd[@]}"

@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/lib/paths.sh"
 
-mvs_load_paths "${1:-${MVS_EXPERIMENT:-so101-homogeneous-rel}}"
+mvs_load_paths "${1:-${MVS_EXPERIMENT:-so101-homogeneous-delta30}}"
 mvs_create_layout
 
 if ! command -v hf >/dev/null 2>&1; then
@@ -31,8 +31,25 @@ download_file() {
 }
 
 download_file "${VIDEO_LORA_REPO}" "${VIDEO_LORA_FILE}" "${MVS_EXP_VIDEO_LORA_DIR}"
-download_file "${ACTION_RELATIVE_REPO}" "${ACTION_RELATIVE_FILE}" "${MVS_EXP_ACTION_RELATIVE_DIR}"
-download_file "${ACTION_RELATIVE_REPO}" "${ACTION_RELATIVE_STATS_FILE}" "${MVS_EXP_ACTION_RELATIVE_DIR}"
+
+case "${ACTION_DECODER_KIND}" in
+  absolute)
+    download_file "${ACTION_ABSOLUTE_REPO}" "${ACTION_ABSOLUTE_FILE}" "${MVS_EXP_ACTION_ABSOLUTE_DIR}"
+    download_file "${ACTION_ABSOLUTE_REPO}" "${ACTION_ABSOLUTE_STATS_FILE}" "${MVS_EXP_ACTION_ABSOLUTE_DIR}"
+    ;;
+  delta_30hz)
+    download_file "${ACTION_DELTA30_REPO}" "${ACTION_DELTA30_FILE}" "${MVS_EXP_ACTION_DELTA30_DIR}"
+    download_file "${ACTION_DELTA30_REPO}" "${ACTION_DELTA30_STATS_FILE}" "${MVS_EXP_ACTION_DELTA30_DIR}"
+    ;;
+  relative)
+    download_file "${ACTION_RELATIVE_REPO}" "${ACTION_RELATIVE_FILE}" "${MVS_EXP_ACTION_RELATIVE_DIR}"
+    download_file "${ACTION_RELATIVE_REPO}" "${ACTION_RELATIVE_STATS_FILE}" "${MVS_EXP_ACTION_RELATIVE_DIR}"
+    ;;
+  *)
+    echo "ERROR: unsupported ACTION_DECODER_KIND=${ACTION_DECODER_KIND}" >&2
+    exit 1
+    ;;
+esac
 
 if [[ "${DOWNLOAD_ABSOLUTE}" == "1" ]]; then
   download_file "${ACTION_ABSOLUTE_REPO}" "${ACTION_ABSOLUTE_FILE}" "${MVS_EXP_ACTION_ABSOLUTE_DIR}"

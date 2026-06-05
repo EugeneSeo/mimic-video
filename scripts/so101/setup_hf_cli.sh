@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/lib/paths.sh"
 
-mvs_load_paths "${1:-${MVS_EXPERIMENT:-so101-homogeneous-rel}}"
+mvs_load_paths "${1:-${MVS_EXPERIMENT:-so101-homogeneous-delta30}}"
 mvs_create_layout
 
 if ! command -v uv >/dev/null 2>&1; then

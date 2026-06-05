@@ -23,6 +23,12 @@ download_file() {
   local file="$2"
   local local_dir="$3"
 
+  if [[ -z "${repo}" ]]; then
+    echo "ERROR: HF repo is not set for ${file}." >&2
+    echo "Set it in scripts/so101/artifacts/${MVS_EXPERIMENT}.env or export it before running." >&2
+    exit 1
+  fi
+
   echo
   echo "Downloading ${repo}:${file}"
   hf download "${repo}" "${file}" \
@@ -30,30 +36,46 @@ download_file() {
     --local-dir "${local_dir}"
 }
 
-download_file "${VIDEO_LORA_REPO}" "${VIDEO_LORA_FILE}" "${MVS_EXP_VIDEO_LORA_DIR}"
+download_checkpoint() {
+  local repo="$1"
+  local file="$2"
+  local local_dir="$3"
 
-case "${ACTION_DECODER_KIND}" in
-  absolute)
-    download_file "${ACTION_ABSOLUTE_REPO}" "${ACTION_ABSOLUTE_FILE}" "${MVS_EXP_ACTION_ABSOLUTE_DIR}"
-    download_file "${ACTION_ABSOLUTE_REPO}" "${ACTION_ABSOLUTE_STATS_FILE}" "${MVS_EXP_ACTION_ABSOLUTE_DIR}"
-    ;;
-  delta_30hz)
-    download_file "${ACTION_DELTA30_REPO}" "${ACTION_DELTA30_FILE}" "${MVS_EXP_ACTION_DELTA30_DIR}"
-    download_file "${ACTION_DELTA30_REPO}" "${ACTION_DELTA30_STATS_FILE}" "${MVS_EXP_ACTION_DELTA30_DIR}"
-    ;;
-  relative)
-    download_file "${ACTION_RELATIVE_REPO}" "${ACTION_RELATIVE_FILE}" "${MVS_EXP_ACTION_RELATIVE_DIR}"
-    download_file "${ACTION_RELATIVE_REPO}" "${ACTION_RELATIVE_STATS_FILE}" "${MVS_EXP_ACTION_RELATIVE_DIR}"
-    ;;
-  *)
-    echo "ERROR: unsupported ACTION_DECODER_KIND=${ACTION_DECODER_KIND}" >&2
+  if [[ -z "${repo}" ]]; then
+    echo "ERROR: HF repo is not set for ${file}." >&2
+    echo "Set it in scripts/so101/artifacts/${MVS_EXPERIMENT}.env or export it before running." >&2
     exit 1
-    ;;
-esac
+  fi
 
-if [[ "${DOWNLOAD_ABSOLUTE}" == "1" ]]; then
-  download_file "${ACTION_ABSOLUTE_REPO}" "${ACTION_ABSOLUTE_FILE}" "${MVS_EXP_ACTION_ABSOLUTE_DIR}"
-  download_file "${ACTION_ABSOLUTE_REPO}" "${ACTION_ABSOLUTE_STATS_FILE}" "${MVS_EXP_ACTION_ABSOLUTE_DIR}"
+  case "${file}" in
+    ""|latest|auto)
+      echo
+      echo "Downloading latest checkpoint candidates from ${repo}:checkpoints/model/iter_*.pt"
+      hf download "${repo}" \
+        --repo-type model \
+        --include 'checkpoints/model/iter_*.pt' \
+        --local-dir "${local_dir}"
+      ;;
+    *)
+      download_file "${repo}" "${file}" "${local_dir}"
+      ;;
+  esac
+}
+
+download_checkpoint "${VIDEO_LORA_REPO}" "${VIDEO_LORA_FILE}" "${MVS_EXP_VIDEO_LORA_DIR}"
+
+if [[ "${ACTION_ASSETS_ENABLED}" != "1" ]]; then
+  echo
+  echo "ACTION_ASSETS_ENABLED=0; skipping action decoder and stats download."
+else
+  download_checkpoint \
+    "${MIMIC_VIDEO_ACTION_DECODER_REPO}" \
+    "${MIMIC_VIDEO_ACTION_DECODER_FILE}" \
+    "${MIMIC_VIDEO_ACTION_DECODER_DIR}"
+  download_file \
+    "${MIMIC_VIDEO_ACTION_DECODER_REPO}" \
+    "${MIMIC_VIDEO_ACTION_DECODER_STATS_FILE}" \
+    "${MIMIC_VIDEO_ACTION_DECODER_DIR}"
 fi
 
 if [[ -n "${BASE_VIDEO_REPO}" ]]; then

@@ -133,6 +133,8 @@ class SO101PolicyServer:
             "metadata": {
                 "action_horizon": self.policy.action_horizon,
                 "action_dim": self.policy.action_dim,
+                "action_target_frequency": self.policy.action_target_frequency,
+                "action_delta_mode": self.policy.action_delta_mode,
             },
         }
 

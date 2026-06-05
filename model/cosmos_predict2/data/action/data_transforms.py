@@ -161,6 +161,38 @@ class ConvertLowdimRepr(DataTransform):
         return False
 
 
+class IncrementalLowdimDelta(DataTransform):
+    def __init__(self, relative_base_value_idx: int, **kwargs):
+        super().__init__(**kwargs)
+        self._relative_base_value_idx = relative_base_value_idx
+
+    def __call__(
+        self, targets: list[tuple[str, np.ndarray]], relative_base_value: np.ndarray
+    ) -> Iterator[tuple[str, np.ndarray]]:
+        base_value = relative_base_value[self._relative_base_value_idx]
+        for key, value in targets:
+            delta = np.empty_like(value, dtype=np.float32)
+            delta[0] = value[0] - base_value
+            delta[1:] = value[1:] - value[:-1]
+            yield key, delta
+
+    @property
+    def new_components(self) -> dict[str, dict]:
+        return {
+            key: {**meta, "repr": meta["target_repr"]}
+            for key, meta in self._metas.items()
+            if any(re.search(pattern, key) is not None for pattern in self._targets)
+        }
+
+    @property
+    def remove_original(self) -> bool:
+        return True
+
+    @property
+    def ignore_for_normalization(self) -> bool:
+        return False
+
+
 class RotationMatrixTo6D(DataTransform):
     def __call__(self, targets: list[tuple[str, np.ndarray]]) -> Iterator[tuple[str, np.ndarray]]:
         for key, rot_mat in targets:

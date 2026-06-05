@@ -190,12 +190,19 @@ If the server is not started with `--load-text-encoder`, the client must send
 
 ```python
 {
-    "actions": np.ndarray,  # shape (15, 6)
+    "actions": np.ndarray,  # shape (action_horizon, 6)
     "server_timing": {...},
-    "metadata": {"action_horizon": 15, "action_dim": 6},
+    "metadata": {
+        "action_horizon": 15,
+        "action_dim": 6,
+        "action_target_frequency": 5,
+        "action_delta_mode": "absolute_target",
+    },
 }
 ```
 
 For `DATA_CONFIG=so101`, actions are absolute joint targets. For
-`DATA_CONFIG=so101_relative`, actions are joint deltas and deployment should use
-`absolute_target = current_joint + predicted_delta`.
+`DATA_CONFIG=so101_relative`, actions are future offsets from the joint state at
+the policy call. For `DATA_CONFIG=so101_delta` and `so101_delta_30hz`, actions
+are incremental deltas and deployment should cumulatively apply them at
+`action_target_frequency`.

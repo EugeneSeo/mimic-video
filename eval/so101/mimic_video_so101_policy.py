@@ -6,7 +6,7 @@ training setup:
 
     observation/images/front -> workspace_rgb
     observation/state        -> obs/lowdim_concat, shape (1, 6)
-    actions                  -> action/lowdim_concat, shape (15, 6)
+    actions                  -> action/lowdim_concat, shape (H, 6)
 
 For Phase 1 offline evaluation, prompt embeddings are read from the converted zarr
 dataset and passed directly to the video pipeline, so the heavyweight T5 text
@@ -92,7 +92,10 @@ class MimicVideoSO101Policy:
         self.obs_image_horizon = int(self.data_config.policy_io.policy_io.obs.workspace_rgb.horizon)
         self.front_image_history: collections.deque[np.ndarray] = collections.deque(maxlen=self.obs_image_horizon)
         self.pipeline = self._load_pipeline()
-        self.action_horizon = int(self.data_config.policy_io.policy_io.action.joint_action_lowdim.horizon)
+        action_config = self.data_config.policy_io.policy_io.action.joint_action_lowdim
+        self.action_horizon = int(action_config.horizon)
+        self.action_target_frequency = int(action_config.target_frequency)
+        self.action_delta_mode = self._infer_action_delta_mode()
         self.action_dim = int(self.pipeline.world2action_pipeline.dit.out_channels)
 
     def _load_resolved_config(self):
@@ -134,6 +137,13 @@ class MimicVideoSO101Policy:
         )
         action_pipe.normalizer.requires_grad_(False)
         return Video2World2ActionPipeline(video_pipe, action_pipe).cuda().eval()
+
+    def _infer_action_delta_mode(self) -> str:
+        if "so101_delta" in self.cfg.experiment_name:
+            return "incremental_delta"
+        if "so101_relative" in self.cfg.experiment_name:
+            return "reference_state_offset"
+        return "absolute_target"
 
     def _load_or_compute_statistics(self) -> dict:
         if self.cfg.stats_path is not None:
@@ -415,6 +425,8 @@ class MimicVideoSO101Policy:
             "experiment_name": self.cfg.experiment_name,
             "action_horizon": self.action_horizon,
             "action_dim": self.action_dim,
+            "action_target_frequency": self.action_target_frequency,
+            "action_delta_mode": self.action_delta_mode,
             "views": ["front"],
             "data_dir": None if self.cfg.data_dir is None else str(self.cfg.data_dir),
             "stats_path": None if self.cfg.stats_path is None else str(self.cfg.stats_path),

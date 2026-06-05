@@ -6,21 +6,26 @@
 #SBATCH --mem-per-cpu=16G
 #SBATCH --gpus=1
 #SBATCH --gres=gpumem:24G
-#SBATCH --output=/cluster/scratch/eugseo/mimic_video_logs/%x-%j.out
-#SBATCH --error=/cluster/scratch/eugseo/mimic_video_logs/%x-%j.err
+#SBATCH --output=/cluster/scratch/%u/mimic_video/logs/%x-%j.out
+#SBATCH --error=/cluster/scratch/%u/mimic_video/logs/%x-%j.err
 
 set -euo pipefail
 module load eth_proxy
 
-REPO_ROOT="${REPO_ROOT:-/cluster/project/cvg/students/eugseo/workspace/mimic-video}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="${REPO_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 MODEL_DIR="$REPO_ROOT/model"
-DATASET_PATH="${DATASET_PATH:-/cluster/scratch/eugseo/mimic_video_video_data/so101_bottle_front_wrist_hstack_5fps_smoke}"
+SCRATCH="${SCRATCH:-/cluster/scratch/${USER}}"
+MIMIC_VIDEO_ROOT="${MIMIC_VIDEO_ROOT:-${MVS_ROOT:-$SCRATCH/mimic_video}}"
+LOG_DIR="${LOG_DIR:-${MVS_LOG_DIR:-$MIMIC_VIDEO_ROOT/logs}}"
+DATASET_PATH="${DATASET_PATH:-$MIMIC_VIDEO_ROOT/shared/video_data/so101_bottle_front_wrist_hstack_5fps_smoke}"
 RUN_TMP_DIR="${RUN_TMP_DIR:-/tmp/mvs_2cam_t5_${SLURM_JOB_ID:-manual}}"
 
-mkdir -p /cluster/scratch/eugseo/mimic_video_logs "$RUN_TMP_DIR/uv-cache" /cluster/scratch/eugseo/hf_home
+mkdir -p "$LOG_DIR" "$RUN_TMP_DIR/uv-cache" "$MIMIC_VIDEO_ROOT/shared/hf-home"
 export TMPDIR="$RUN_TMP_DIR"
 export UV_CACHE_DIR="$RUN_TMP_DIR/uv-cache"
-export HF_HOME="${HF_HOME:-/cluster/scratch/eugseo/hf_home}"
+export HF_HOME="${HF_HOME:-${MVS_SHARED_ROOT:+$MVS_SHARED_ROOT/hf-home}}"
+export HF_HOME="${HF_HOME:-$MIMIC_VIDEO_ROOT/shared/hf-home}"
 export PYTHONUNBUFFERED=1
 
 if ! find "$DATASET_PATH/video" -maxdepth 1 -name '*.mp4' -type f -print -quit | grep -q .; then

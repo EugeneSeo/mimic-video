@@ -4,17 +4,20 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem-per-cpu=8G
-#SBATCH --output=/cluster/scratch/eugseo/mimic_video_logs/%x-%j.out
-#SBATCH --error=/cluster/scratch/eugseo/mimic_video_logs/%x-%j.err
+#SBATCH --output=/cluster/scratch/%u/mimic_video/logs/%x-%j.out
+#SBATCH --error=/cluster/scratch/%u/mimic_video/logs/%x-%j.err
 
 set -euo pipefail
 module load eth_proxy
 
-REPO_ROOT="${REPO_ROOT:-/cluster/project/cvg/students/eugseo/workspace/mimic-video}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="${REPO_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 MODEL_DIR="$REPO_ROOT/model"
-LOG_DIR="${LOG_DIR:-/cluster/scratch/eugseo/mimic_video_logs}"
+SCRATCH="${SCRATCH:-/cluster/scratch/${USER}}"
+MIMIC_VIDEO_ROOT="${MIMIC_VIDEO_ROOT:-${MVS_ROOT:-$SCRATCH/mimic_video}}"
+LOG_DIR="${LOG_DIR:-${MVS_LOG_DIR:-$MIMIC_VIDEO_ROOT/logs}}"
 REPO_ID="${REPO_ID:-dreamdifferent/so101_bottle}"
-OUTPUT_DIR="${OUTPUT_DIR:-/cluster/scratch/eugseo/mimic_video_video_data/so101_bottle_front_wrist_hstack_5fps_smoke}"
+OUTPUT_DIR="${OUTPUT_DIR:-$MIMIC_VIDEO_ROOT/shared/video_data/so101_bottle_front_wrist_hstack_5fps_smoke}"
 MAX_EPISODES="${MAX_EPISODES-2}"
 OVERWRITE="${OVERWRITE:-0}"
 VIDEO_BACKEND="${VIDEO_BACKEND:-pyav}"
@@ -23,11 +26,13 @@ TARGET_FPS="${TARGET_FPS:-5}"
 VIEW_LAYOUT="${VIEW_LAYOUT:-hstack}"
 RUN_TMP_DIR="${RUN_TMP_DIR:-/tmp/mvs_2cam_convert_${SLURM_JOB_ID:-manual}}"
 
-mkdir -p "$LOG_DIR" "$RUN_TMP_DIR/uv-cache" /cluster/scratch/eugseo/hf_home /cluster/scratch/eugseo/hf_datasets_cache
+mkdir -p "$LOG_DIR" "$RUN_TMP_DIR/uv-cache" "$MIMIC_VIDEO_ROOT/shared/hf-home" "$MIMIC_VIDEO_ROOT/shared/hf-datasets-cache"
 export TMPDIR="$RUN_TMP_DIR"
 export UV_CACHE_DIR="$RUN_TMP_DIR/uv-cache"
-export HF_HOME="${HF_HOME:-/cluster/scratch/eugseo/hf_home}"
-export HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-/cluster/scratch/eugseo/hf_datasets_cache}"
+export HF_HOME="${HF_HOME:-${MVS_SHARED_ROOT:+$MVS_SHARED_ROOT/hf-home}}"
+export HF_HOME="${HF_HOME:-$MIMIC_VIDEO_ROOT/shared/hf-home}"
+export HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-${MVS_SHARED_ROOT:+$MVS_SHARED_ROOT/hf-datasets-cache}}"
+export HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-$MIMIC_VIDEO_ROOT/shared/hf-datasets-cache}"
 export PYTHONUNBUFFERED=1
 
 if [ -e "$OUTPUT_DIR" ] && [ "$OVERWRITE" = "1" ]; then

@@ -12,6 +12,7 @@ import argparse
 import csv
 import dataclasses
 import json
+import os
 import pathlib
 import sys
 from typing import Literal
@@ -26,21 +27,50 @@ if str(MODEL_ROOT) not in sys.path:
 
 from mimic_video_so101_policy import MimicVideoSO101Policy, SO101MimicVideoPolicyConfig  # noqa: E402
 
-DEFAULT_EXPERIMENT = (
-    "w2a_so101_partial_bridge_init_"
+
+def _default_mimic_video_root() -> pathlib.Path:
+    scratch = pathlib.Path(os.environ.get("SCRATCH", f"/cluster/scratch/{os.environ.get('USER', 'unknown')}"))
+    return pathlib.Path(os.environ.get("MIMIC_VIDEO_ROOT", os.environ.get("MVS_ROOT", scratch / "mimic_video")))
+
+
+def _env_path(*names: str, default: pathlib.Path) -> pathlib.Path:
+    for name in names:
+        value = os.environ.get(name)
+        if value:
+            return pathlib.Path(value)
+    return default
+
+
+_DEFAULT_ROOT = _default_mimic_video_root()
+_DEFAULT_EXPERIMENT_ROOT = pathlib.Path(
+    os.environ.get(
+        "MIMIC_VIDEO_EXPERIMENT_ROOT",
+        os.environ.get("MVS_EXP_ROOT", _DEFAULT_ROOT / "experiments" / os.environ.get("MVS_EXPERIMENT", "so101-homogeneous-rel")),
+    )
+)
+
+DEFAULT_EXPERIMENT = os.environ.get(
+    "POLICY_EXPERIMENT_NAME",
+    "w2a_so101_relative_partial_bridge_init_"
     "v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused_"
-    "lr1.000e-04_layer20_bsz8"
+    "lr1.000e-04_layer20_bsz4",
 )
-DEFAULT_VIDEO_CKPT = pathlib.Path(
-    "/cluster/scratch/eugseo/mimic_video_checkpoints/video_backbone/"
-    "v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused.pt"
+DEFAULT_VIDEO_CKPT = _env_path(
+    "MVS_VIDEO_BACKBONE_PATH",
+    "MIMIC_VIDEO_BACKBONE_PATH",
+    default=_DEFAULT_ROOT
+    / "shared/checkpoints/video_backbone/v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused.pt",
 )
-DEFAULT_ACTION_CKPT = pathlib.Path(
-    "/cluster/scratch/eugseo/mimic_video_runs_so101_partial_bridge_bsz8/vam/so101/"
-    "w2a_so101_partial_bridge_init_v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused_"
-    "lr1.000e-04_layer20_bsz8/checkpoints/model/iter_000000700.pt"
+DEFAULT_ACTION_CKPT = _env_path(
+    "MVS_ACTION_MODEL_PATH",
+    "MIMIC_VIDEO_ACTION_MODEL_PATH",
+    default=_DEFAULT_EXPERIMENT_ROOT / "checkpoints/action_decoder_relative/checkpoints/model/iter_000002500.pt",
 )
-DEFAULT_DATA_DIR = pathlib.Path("/cluster/scratch/eugseo/mimic_video_data/so101_bottle_front_full")
+DEFAULT_DATA_DIR = _env_path(
+    "MVS_SHARED_ACTION_DATA_DIR",
+    "SO101_DATA_DIR",
+    default=_DEFAULT_ROOT / "shared/data/so101_bottle_action_only_full",
+)
 DEFAULT_OUTPUT_DIR = pathlib.Path("/tmp/mimic_video_so101_offline_eval")
 
 EvalSplit = Literal["train", "val"]

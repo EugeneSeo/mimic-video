@@ -5,8 +5,8 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem-per-cpu=16G
 #SBATCH --gpus=nvidia_a100_80gb_pcie:1
-#SBATCH --output=/cluster/scratch/eugseo/mimic_video_logs/%x-%j.out
-#SBATCH --error=/cluster/scratch/eugseo/mimic_video_logs/%x-%j.err
+#SBATCH --output=/cluster/scratch/%u/mimic_video/logs/%x-%j.out
+#SBATCH --error=/cluster/scratch/%u/mimic_video/logs/%x-%j.err
 
 set -euo pipefail
 
@@ -20,26 +20,31 @@ module load eth_proxy
 #   sbatch model/scripts/precompute_so101_t5_smoke.sbatch
 #
 # Useful overrides:
-#   DATA_DIR=/cluster/scratch/eugseo/mimic_video_data/so101_bottle_smoke
+#   DATA_DIR=/cluster/scratch/$USER/mimic_video/shared/data/so101_bottle_smoke
 #   PROMPT="pick up the bottle and place it into the container"
 ################################################################################
 
-REPO_ROOT="${REPO_ROOT:-/cluster/project/cvg/students/eugseo/workspace/mimic-video}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="${REPO_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 MODEL_DIR="$REPO_ROOT/model"
-LOG_DIR="${LOG_DIR:-/cluster/scratch/eugseo/mimic_video_logs}"
-DATA_DIR="${DATA_DIR:-/cluster/scratch/eugseo/mimic_video_data/so101_bottle_smoke}"
+SCRATCH="${SCRATCH:-/cluster/scratch/${USER}}"
+MIMIC_VIDEO_ROOT="${MIMIC_VIDEO_ROOT:-${MVS_ROOT:-$SCRATCH/mimic_video}}"
+LOG_DIR="${LOG_DIR:-${MVS_LOG_DIR:-$MIMIC_VIDEO_ROOT/logs}}"
+DATA_DIR="${DATA_DIR:-$MIMIC_VIDEO_ROOT/shared/data/so101_bottle_smoke}"
 RUN_NAME="${RUN_NAME:-so101_t5_${SLURM_JOB_ID:-manual}}"
 RUN_TMP_DIR="${RUN_TMP_DIR:-$REPO_ROOT/tmp/$RUN_NAME}"
 
 mkdir -p "$LOG_DIR"
 mkdir -p "$RUN_TMP_DIR/uv-cache" "$RUN_TMP_DIR/torch-cache"
-mkdir -p /cluster/scratch/eugseo/hf_home /cluster/scratch/eugseo/hf_datasets_cache
+mkdir -p "$MIMIC_VIDEO_ROOT/shared/hf-home" "$MIMIC_VIDEO_ROOT/shared/hf-datasets-cache"
 
 export TMPDIR="$RUN_TMP_DIR"
 export UV_CACHE_DIR="$RUN_TMP_DIR/uv-cache"
 export TORCH_HOME="$RUN_TMP_DIR/torch-cache"
-export HF_HOME="${HF_HOME:-/cluster/scratch/eugseo/hf_home}"
-export HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-/cluster/scratch/eugseo/hf_datasets_cache}"
+export HF_HOME="${HF_HOME:-${MVS_SHARED_ROOT:+$MVS_SHARED_ROOT/hf-home}}"
+export HF_HOME="${HF_HOME:-$MIMIC_VIDEO_ROOT/shared/hf-home}"
+export HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-${MVS_SHARED_ROOT:+$MVS_SHARED_ROOT/hf-datasets-cache}}"
+export HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-$MIMIC_VIDEO_ROOT/shared/hf-datasets-cache}"
 export PYTHONUNBUFFERED=1
 export DATA_DIR
 

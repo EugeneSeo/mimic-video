@@ -6,20 +6,25 @@
 #SBATCH --mem-per-cpu=16G
 #SBATCH --gpus=2
 #SBATCH --gres=gpumem:80G
-#SBATCH --output=/cluster/scratch/eugseo/mimic_video_logs/%x-%j.out
-#SBATCH --error=/cluster/scratch/eugseo/mimic_video_logs/%x-%j.err
+#SBATCH --output=/cluster/scratch/%u/mimic_video/logs/%x-%j.out
+#SBATCH --error=/cluster/scratch/%u/mimic_video/logs/%x-%j.err
 
 set -euo pipefail
 module load eth_proxy
 export PATH="/usr/sbin:/sbin:$PATH"
 
-REPO_ROOT="${REPO_ROOT:-/cluster/project/cvg/students/eugseo/workspace/mimic-video}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="${REPO_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 MODEL_DIR="$REPO_ROOT/model"
-DATASET_DIR="${DATASET_DIR:-/cluster/scratch/eugseo/mimic_video_video_data/so101_bottle_front_wrist_hstack_5fps_full}"
-RUNS_DIR="${RUNS_DIR:-/cluster/scratch/eugseo/mimic_video_runs_so101_2cam_v2w_2gpu}"
-WANDB_ROOT_DIR="${WANDB_ROOT_DIR:-/cluster/scratch/eugseo/mimic_video_wandb}"
+SCRATCH="${SCRATCH:-/cluster/scratch/${USER}}"
+MIMIC_VIDEO_ROOT="${MIMIC_VIDEO_ROOT:-${MVS_ROOT:-$SCRATCH/mimic_video}}"
+MIMIC_VIDEO_EXPERIMENT="${MIMIC_VIDEO_EXPERIMENT:-${MVS_EXPERIMENT:-manual}}"
+MIMIC_VIDEO_EXPERIMENT_ROOT="${MIMIC_VIDEO_EXPERIMENT_ROOT:-${MVS_EXP_ROOT:-$MIMIC_VIDEO_ROOT/experiments/$MIMIC_VIDEO_EXPERIMENT}}"
+DATASET_DIR="${DATASET_DIR:-$MIMIC_VIDEO_ROOT/shared/video_data/so101_bottle_front_wrist_hstack_5fps_full}"
+RUNS_DIR="${RUNS_DIR:-${MVS_RUNS_DIR:-$MIMIC_VIDEO_EXPERIMENT_ROOT/runs/video_lora}}"
+WANDB_ROOT_DIR="${WANDB_ROOT_DIR:-$MIMIC_VIDEO_EXPERIMENT_ROOT/wandb}"
 RUN_TMP_DIR="${RUN_TMP_DIR:-/tmp/mvs_2cam_v2w_2gpu_${SLURM_JOB_ID:-manual}}"
-SO101_TWO_CAMERA_INIT_DIT_PATH="${SO101_TWO_CAMERA_INIT_DIT_PATH:-/cluster/scratch/eugseo/mimic_video_checkpoints/video_backbone/v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused.pt}"
+SO101_TWO_CAMERA_INIT_DIT_PATH="${SO101_TWO_CAMERA_INIT_DIT_PATH:-$MIMIC_VIDEO_ROOT/shared/checkpoints/video_backbone/v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused.pt}"
 
 NUM_GPUS="${NUM_GPUS:-2}"
 EXPERIMENT="${EXPERIMENT:-v2w_so101_two_camera_lora_rank256_lr1.778e-04_bsz4}"
@@ -74,13 +79,16 @@ if [ ! -f "$SO101_TWO_CAMERA_INIT_DIT_PATH" ]; then
   exit 1
 fi
 
-mkdir -p /cluster/scratch/eugseo/mimic_video_logs "$RUNS_DIR" "$WANDB_ROOT_DIR/cache" "$RUN_TMP_DIR/uv-cache" "$RUN_TMP_DIR/torch-cache" "$RUN_TMP_DIR/triton-cache"
+LOG_DIR="${LOG_DIR:-${MVS_LOG_DIR:-$MIMIC_VIDEO_EXPERIMENT_ROOT/logs}}"
+mkdir -p "$LOG_DIR" "$RUNS_DIR" "$WANDB_ROOT_DIR/cache" "$RUN_TMP_DIR/uv-cache" "$RUN_TMP_DIR/torch-cache" "$RUN_TMP_DIR/triton-cache"
 export TMPDIR="$RUN_TMP_DIR"
 export UV_CACHE_DIR="$RUN_TMP_DIR/uv-cache"
 export TORCH_HOME="$RUN_TMP_DIR/torch-cache"
 export TRITON_CACHE_DIR="$RUN_TMP_DIR/triton-cache"
-export HF_HOME="${HF_HOME:-/cluster/scratch/eugseo/hf_home}"
-export HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-/cluster/scratch/eugseo/hf_datasets_cache}"
+export HF_HOME="${HF_HOME:-${MVS_SHARED_ROOT:+$MVS_SHARED_ROOT/hf-home}}"
+export HF_HOME="${HF_HOME:-$MIMIC_VIDEO_ROOT/shared/hf-home}"
+export HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-${MVS_SHARED_ROOT:+$MVS_SHARED_ROOT/hf-datasets-cache}}"
+export HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-$MIMIC_VIDEO_ROOT/shared/hf-datasets-cache}"
 export IMAGINAIRE_OUTPUT_ROOT="$RUNS_DIR"
 export WANDB_ENABLED WANDB_ENTITY WANDB_PROJECT WANDB_MODE
 export WANDB_DIR="$WANDB_ROOT_DIR"

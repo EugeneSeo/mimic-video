@@ -6,17 +6,22 @@
 #SBATCH --mem-per-cpu=16G
 #SBATCH --gpus=1
 #SBATCH --gres=gpumem:80G
-#SBATCH --output=/cluster/scratch/eugseo/mimic_video_logs/%x-%j.out
-#SBATCH --error=/cluster/scratch/eugseo/mimic_video_logs/%x-%j.err
+#SBATCH --output=/cluster/scratch/%u/mimic_video/logs/%x-%j.out
+#SBATCH --error=/cluster/scratch/%u/mimic_video/logs/%x-%j.err
 
 set -euo pipefail
 module load eth_proxy
 export PATH="/usr/sbin:/sbin:$PATH"
 
-REPO_ROOT="${REPO_ROOT:-/cluster/project/cvg/students/eugseo/workspace/mimic-video}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="${REPO_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 MODEL_DIR="$REPO_ROOT/model"
-DATASET_DIR="${DATASET_DIR:-/cluster/scratch/eugseo/mimic_video_video_data/so101_bottle_front_wrist_hstack_5fps_full}"
-MODEL_CHECKPOINT="${MODEL_CHECKPOINT:-/cluster/scratch/eugseo/mimic_video_runs_so101_2cam_v2w_full_5fps_24h_2gpu_bsz2_acc8/posttraining/video2world_so101_two_camera/v2w_so101_two_camera_lora_rank256_lr1.778e-04_bsz4/checkpoints/model/iter_000001000.pt}"
+SCRATCH="${SCRATCH:-/cluster/scratch/${USER}}"
+MIMIC_VIDEO_ROOT="${MIMIC_VIDEO_ROOT:-${MVS_ROOT:-$SCRATCH/mimic_video}}"
+MIMIC_VIDEO_EXPERIMENT="${MIMIC_VIDEO_EXPERIMENT:-${MVS_EXPERIMENT:-so101-homogeneous-rel}}"
+MIMIC_VIDEO_EXPERIMENT_ROOT="${MIMIC_VIDEO_EXPERIMENT_ROOT:-${MVS_EXP_ROOT:-$MIMIC_VIDEO_ROOT/experiments/$MIMIC_VIDEO_EXPERIMENT}}"
+DATASET_DIR="${DATASET_DIR:-${SO101_VIDEO_DIR:-$MIMIC_VIDEO_ROOT/shared/video_data/so101_bottle_front_wrist_hstack_5fps_full}}"
+MODEL_CHECKPOINT="${MODEL_CHECKPOINT:-${MVS_VIDEO_LORA_PATH:-$MIMIC_VIDEO_EXPERIMENT_ROOT/checkpoints/video_lora/checkpoints/model/iter_000001000.pt}}"
 OUTPUT_DIR="${OUTPUT_DIR:-$REPO_ROOT/tmp/so101_v2w_preview_iter1000}"
 NUM_SAMPLES="${NUM_SAMPLES:-4}"
 NUM_SAMPLING_STEPS="${NUM_SAMPLING_STEPS:-20}"
@@ -31,12 +36,15 @@ if [ -d "$VENV_NVIDIA_DIR" ]; then
 fi
 
 RUN_TMP_DIR="${RUN_TMP_DIR:-/tmp/mvs_so101_v2w_preview_${SLURM_JOB_ID:-manual}}"
-mkdir -p /cluster/scratch/eugseo/mimic_video_logs "$OUTPUT_DIR" "$RUN_TMP_DIR/torch-cache" "$RUN_TMP_DIR/triton-cache"
+LOG_DIR="${LOG_DIR:-${MVS_LOG_DIR:-$MIMIC_VIDEO_EXPERIMENT_ROOT/logs}}"
+mkdir -p "$LOG_DIR" "$OUTPUT_DIR" "$RUN_TMP_DIR/torch-cache" "$RUN_TMP_DIR/triton-cache"
 export TMPDIR="$RUN_TMP_DIR"
 export TORCH_HOME="$RUN_TMP_DIR/torch-cache"
 export TRITON_CACHE_DIR="$RUN_TMP_DIR/triton-cache"
-export HF_HOME="${HF_HOME:-/cluster/scratch/eugseo/hf_home}"
-export HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-/cluster/scratch/eugseo/hf_datasets_cache}"
+export HF_HOME="${HF_HOME:-${MVS_SHARED_ROOT:+$MVS_SHARED_ROOT/hf-home}}"
+export HF_HOME="${HF_HOME:-$MIMIC_VIDEO_ROOT/shared/hf-home}"
+export HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-${MVS_SHARED_ROOT:+$MVS_SHARED_ROOT/hf-datasets-cache}}"
+export HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-$MIMIC_VIDEO_ROOT/shared/hf-datasets-cache}"
 export CUDA_DEVICE_MAX_CONNECTIONS="${CUDA_DEVICE_MAX_CONNECTIONS:-1}"
 export NVTE_FUSED_ATTN="${NVTE_FUSED_ATTN:-0}"
 export TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC="${TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC:-7200}"

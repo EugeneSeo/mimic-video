@@ -6,8 +6,8 @@
 #SBATCH --mem-per-cpu=16G
 #SBATCH --gpus=2
 #SBATCH --gres=gpumem:80G
-#SBATCH --output=/cluster/scratch/eugseo/mimic_video_logs/%x-%j.out
-#SBATCH --error=/cluster/scratch/eugseo/mimic_video_logs/%x-%j.err
+#SBATCH --output=/cluster/scratch/%u/mimic_video/logs/%x-%j.out
+#SBATCH --error=/cluster/scratch/%u/mimic_video/logs/%x-%j.err
 
 set -euo pipefail
 
@@ -24,7 +24,7 @@ export PATH="/usr/sbin:/sbin:$PATH"
 #   DATA_DIR=/path/to/converted/so101_zarr
 #
 # Typical submit:
-#   DATA_DIR=/cluster/scratch/eugseo/mimic_video_data/so101_bottle_smoke \
+#   DATA_DIR=/cluster/scratch/$USER/mimic_video/shared/data/so101_bottle_smoke \
 #     sbatch model/scripts/train_so101_smoke.sbatch
 #
 # Optional knobs:
@@ -51,11 +51,16 @@ export PATH="/usr/sbin:/sbin:$PATH"
 #   MIMIC_DATASET_STATS_BATCH_SIZE=4
 ################################################################################
 
-REPO_ROOT="${REPO_ROOT:-/cluster/project/cvg/students/eugseo/workspace/mimic-video}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="${REPO_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 MODEL_DIR="$REPO_ROOT/model"
-LOG_DIR="${LOG_DIR:-/cluster/scratch/eugseo/mimic_video_logs}"
-RUNS_DIR="${RUNS_DIR:-/cluster/scratch/eugseo/mimic_video_runs}"
-WANDB_ROOT_DIR="${WANDB_ROOT_DIR:-/cluster/scratch/eugseo/mimic_video_wandb}"
+SCRATCH="${SCRATCH:-/cluster/scratch/${USER}}"
+MIMIC_VIDEO_ROOT="${MIMIC_VIDEO_ROOT:-${MVS_ROOT:-$SCRATCH/mimic_video}}"
+MIMIC_VIDEO_EXPERIMENT="${MIMIC_VIDEO_EXPERIMENT:-${MVS_EXPERIMENT:-manual}}"
+MIMIC_VIDEO_EXPERIMENT_ROOT="${MIMIC_VIDEO_EXPERIMENT_ROOT:-${MVS_EXP_ROOT:-$MIMIC_VIDEO_ROOT/experiments/$MIMIC_VIDEO_EXPERIMENT}}"
+LOG_DIR="${LOG_DIR:-${MVS_LOG_DIR:-$MIMIC_VIDEO_EXPERIMENT_ROOT/logs}}"
+RUNS_DIR="${RUNS_DIR:-${MVS_RUNS_DIR:-$MIMIC_VIDEO_EXPERIMENT_ROOT/runs}}"
+WANDB_ROOT_DIR="${WANDB_ROOT_DIR:-$MIMIC_VIDEO_EXPERIMENT_ROOT/wandb}"
 
 VENV_NVIDIA_DIR="$MODEL_DIR/.venv/lib/python3.10/site-packages/nvidia"
 if [ -d "$VENV_NVIDIA_DIR" ]; then
@@ -69,7 +74,7 @@ fi
 if [ -z "${DATA_DIR:-}" ]; then
   echo "ERROR: DATA_DIR must point to the converted SO-101 zarr directory."
   echo "Example:"
-  echo "  DATA_DIR=/cluster/scratch/eugseo/mimic_video_data/so101_bottle_smoke sbatch model/scripts/train_so101_smoke.sbatch"
+  echo "  DATA_DIR=$MIMIC_VIDEO_ROOT/shared/data/so101_bottle_smoke sbatch model/scripts/train_so101_smoke.sbatch"
   exit 1
 fi
 
@@ -121,14 +126,16 @@ if [ -f "$VENV_NVIDIA_DIR/cuda_runtime/lib/libcudart.so.12" ]; then
   ln -sfn "$VENV_NVIDIA_DIR/cuda_runtime/lib/libcudart.so.12" "$CUDA_COMPAT_DIR/libcudart.so"
   export LD_LIBRARY_PATH="$CUDA_COMPAT_DIR:${LD_LIBRARY_PATH:-}"
 fi
-mkdir -p /cluster/scratch/eugseo/hf_home /cluster/scratch/eugseo/hf_datasets_cache
+mkdir -p "$MIMIC_VIDEO_ROOT/shared/hf-home" "$MIMIC_VIDEO_ROOT/shared/hf-datasets-cache"
 
 export TMPDIR="$RUN_TMP_DIR"
 export UV_CACHE_DIR="$RUN_TMP_DIR/uv-cache"
 export TORCH_HOME="$RUN_TMP_DIR/torch-cache"
 export TRITON_CACHE_DIR="$RUN_TMP_DIR/triton-cache"
-export HF_HOME="${HF_HOME:-/cluster/scratch/eugseo/hf_home}"
-export HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-/cluster/scratch/eugseo/hf_datasets_cache}"
+export HF_HOME="${HF_HOME:-${MVS_SHARED_ROOT:+$MVS_SHARED_ROOT/hf-home}}"
+export HF_HOME="${HF_HOME:-$MIMIC_VIDEO_ROOT/shared/hf-home}"
+export HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-${MVS_SHARED_ROOT:+$MVS_SHARED_ROOT/hf-datasets-cache}}"
+export HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-$MIMIC_VIDEO_ROOT/shared/hf-datasets-cache}"
 export IMAGINAIRE_OUTPUT_ROOT="${IMAGINAIRE_OUTPUT_ROOT:-$RUNS_DIR}"
 export WANDB_ENABLED="${WANDB_ENABLED:-1}"
 export WANDB_ENTITY="${WANDB_ENTITY:-dreamdifferent}"

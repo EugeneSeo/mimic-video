@@ -20,26 +20,40 @@ from imaginaire.utils import distributed, log
 from imaginaire.utils.config_helper import get_config_module, override
 
 
+def default_mimic_video_root() -> pathlib.Path:
+    scratch = pathlib.Path(os.environ.get("SCRATCH", f"/cluster/scratch/{os.environ.get('USER', 'unknown')}"))
+    return pathlib.Path(os.environ.get("MIMIC_VIDEO_ROOT", os.environ.get("MVS_ROOT", scratch / "mimic_video")))
+
+
+def default_experiment_root() -> pathlib.Path:
+    root = default_mimic_video_root()
+    experiment = os.environ.get("MIMIC_VIDEO_EXPERIMENT", os.environ.get("MVS_EXPERIMENT", "so101-homogeneous-rel"))
+    return pathlib.Path(os.environ.get("MIMIC_VIDEO_EXPERIMENT_ROOT", os.environ.get("MVS_EXP_ROOT", root / "experiments" / experiment)))
+
+
 def parse_args() -> argparse.Namespace:
+    root = default_mimic_video_root()
+    exp_root = default_experiment_root()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", default="cosmos_predict2/configs/config.py")
     parser.add_argument("--experiment", default="v2w_so101_two_camera_lora_rank256_lr1.778e-04_bsz4")
     parser.add_argument(
         "--dataset-dir",
-        default="/cluster/scratch/eugseo/mimic_video_video_data/so101_bottle_front_wrist_hstack_5fps_full",
+        default=os.environ.get(
+            "SO101_VIDEO_DIR",
+            str(root / "shared/video_data/so101_bottle_front_wrist_hstack_5fps_full"),
+        ),
     )
     parser.add_argument(
         "--model-checkpoint",
-        default=(
-            "/cluster/scratch/eugseo/mimic_video_runs_so101_2cam_v2w_full_5fps_24h_2gpu_bsz2_acc8/"
-            "posttraining/video2world_so101_two_camera/"
-            "v2w_so101_two_camera_lora_rank256_lr1.778e-04_bsz4/"
-            "checkpoints/model/iter_000001000.pt"
+        default=os.environ.get(
+            "MVS_VIDEO_LORA_PATH",
+            str(exp_root / "checkpoints/video_lora/checkpoints/model/iter_000001000.pt"),
         ),
     )
     parser.add_argument(
         "--output-dir",
-        default="/cluster/scratch/eugseo/mvs_so101_2cam_v2w_preview_iter1000",
+        default=str(exp_root / "previews/video_lora_iter1000"),
     )
     parser.add_argument("--num-samples", type=int, default=4)
     parser.add_argument("--num-conditional-frames", type=int, default=5)

@@ -108,6 +108,21 @@ On a GPU node, terminal 1:
 bash scripts/so101/run_policy_server.sh so101-homogeneous-rel
 ```
 
+The server wrapper requires `msgpack` so external robot clients do not fall back
+to pickle serialization. If it is missing from the model venv:
+
+```bash
+cd model
+source .venv/bin/activate
+pip install msgpack
+```
+
+Restart the server and confirm metadata reports:
+
+```text
+payload_protocol: msgpack-numpy
+```
+
 By default the server uses:
 
 ```text
@@ -184,7 +199,18 @@ bash scripts/so101/run_offline_eval.sh so101-homogeneous-rel
 ```
 
 If the server is not started with `--load-text-encoder`, the client must send
-`observation/prompt_embedding`.
+`observation/prompt_embedding` or a `prompt` that exists in the server-side
+prompt embedding manifest.
+
+For the fixed SO-101 bottle task, export the prompt embedding once on a GPU node:
+
+```bash
+bash scripts/so101/export_bottle_prompt_embedding.sh so101-homogeneous-rel
+```
+
+Then copy/read the generated `.npy` on the robot client and include it as
+`observation/prompt_embedding`, or send the prompt string and let the server load
+the cached embedding through the generated `manifest.json`.
 
 ## Response Schema
 

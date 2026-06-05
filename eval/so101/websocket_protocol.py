@@ -1,10 +1,10 @@
 """Serialization/framing utilities shared by SO-101 server/client scripts.
 
-The DreamDifferent/OpenPI references use msgpack-numpy over websockets. The
-mimic-video Euler env may not include ``msgpack`` or ``websockets``, so Phase 2
-uses a dependency-free TCP transport by default and keeps msgpack as the
-preferred payload format when available. If msgpack is unavailable, pickle is
-used only for paired local server/dry-run clients on trusted connections.
+The DreamDifferent/OpenPI references use msgpack-numpy over websockets. This
+module can fall back to pickle for paired local smoke tests, but production
+robot clients should use msgpack. Pickle couples NumPy's internal module layout
+to both endpoints and can fail when, for example, a NumPy 2.x client talks to a
+NumPy 1.x server.
 """
 
 from __future__ import annotations

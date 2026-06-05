@@ -39,6 +39,17 @@ cd $REPO_ROOT
 bash scripts/so101/run_policy_server.sh so101-homogeneous-rel
 ```
 
+The server must use `msgpack-numpy` payloads for MacBook/robot clients. Do not
+serve robot clients with the pickle fallback because NumPy 2.x clients and NumPy
+1.x servers can fail during `pickle.loads()`. If the wrapper reports missing
+`msgpack`, install it in the server venv and restart:
+
+```bash
+cd $REPO_ROOT/model
+source .venv/bin/activate
+pip install msgpack
+```
+
 Equivalent explicit command:
 
 ```bash
@@ -53,6 +64,30 @@ python eval/so101/policy_server.py \
   --num-sampling-steps 35 \
   --stop-video-denoising-step 10
 ```
+
+The server usually should not load the T5 text encoder on smaller GPUs. For the
+fixed SO-101 bottle task, precompute the prompt embedding once:
+
+```bash
+cd $REPO_ROOT
+bash scripts/so101/export_bottle_prompt_embedding.sh so101-homogeneous-rel
+```
+
+This writes:
+
+```text
+$MVS_ROOT/experiments/so101-homogeneous-rel/prompt_embeddings/so101_bottle_container.npy
+$MVS_ROOT/experiments/so101-homogeneous-rel/prompt_embeddings/manifest.json
+```
+
+for the prompt:
+
+```text
+pick up the bottle and place it into the container
+```
+
+The robot client can then send only the prompt string. The server resolves that
+prompt through the manifest and loads the cached embedding.
 
 ## Existing eval code inventory
 
@@ -99,7 +134,7 @@ Goals:
 
 - Load frozen video backbone, video LoRA, action decoder, and SO-101 stats JSON.
 - Avoid zarr access during server startup.
-- Feed hstack two-camera images, 6D joint state, and prompt embedding.
+- Feed hstack two-camera images, 6D joint state, and prompt string resolved by the server-side embedding cache.
 - Confirm model output shape is `(H, 6)`.
 - Confirm outputs are finite and metadata reports action horizon 15 and action dim 6.
 

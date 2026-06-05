@@ -37,6 +37,7 @@ class ServerArgs:
     action_model_path: pathlib.Path = DEFAULT_ACTION_CKPT
     data_dir: pathlib.Path = DEFAULT_DATA_DIR
     stats_path: pathlib.Path | None = None
+    prompt_embedding_manifest_path: pathlib.Path | None = None
     num_val_episodes: int = 10
     num_sampling_steps: int = 35
     stop_video_denoising_step: int = 10
@@ -60,6 +61,13 @@ def parse_args() -> ServerArgs:
         type=pathlib.Path,
         default=None,
         help="Load normalizer statistics from JSON and skip dataset/zarr access for online prediction.",
+    )
+    parser.add_argument(
+        "--prompt-embedding-manifest",
+        dest="prompt_embedding_manifest_path",
+        type=pathlib.Path,
+        default=None,
+        help="JSON mapping prompt strings to precomputed .npy embeddings.",
     )
     parser.add_argument("--num-val-episodes", type=int, default=ServerArgs.num_val_episodes)
     parser.add_argument("--num-sampling-steps", type=int, default=ServerArgs.num_sampling_steps)
@@ -86,6 +94,7 @@ class SO101PolicyServer:
                 action_model_path=args.action_model_path,
                 data_dir=None if args.stats_path is not None else args.data_dir,
                 stats_path=args.stats_path,
+                prompt_embedding_manifest_path=args.prompt_embedding_manifest_path,
                 num_val_episodes=args.num_val_episodes,
                 num_sampling_steps=args.num_sampling_steps,
                 stop_video_denoising_step=args.stop_video_denoising_step,
@@ -112,6 +121,9 @@ class SO101PolicyServer:
                 "action_horizon": self.policy.action_horizon,
                 "action_dim": self.policy.action_dim,
                 "load_text_encoder": self.args.load_text_encoder,
+                "prompt_embedding_manifest": None
+                if self.args.prompt_embedding_manifest_path is None
+                else str(self.args.prompt_embedding_manifest_path),
             }
         )
         return metadata

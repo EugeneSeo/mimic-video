@@ -37,6 +37,8 @@ mvs_load_paths() {
   export MVS_EVAL_OUTPUT_ROOT="${MVS_EVAL_OUTPUT_ROOT:-${MVS_EXP_ROOT}/eval_outputs}"
   export MVS_LOG_DIR="${MVS_LOG_DIR:-${MVS_EXP_ROOT}/logs}"
   export MVS_RUNS_DIR="${MVS_RUNS_DIR:-${MVS_EXP_ROOT}/runs}"
+  export MVS_PROMPT_EMBEDDING_DIR="${MVS_PROMPT_EMBEDDING_DIR:-${MVS_EXP_ROOT}/prompt_embeddings}"
+  export MVS_PROMPT_EMBEDDING_MANIFEST_PATH="${MVS_PROMPT_EMBEDDING_MANIFEST_PATH:-${MVS_PROMPT_EMBEDDING_DIR}/manifest.json}"
 
   export UV_CACHE_DIR="${UV_CACHE_DIR:-${MVS_SHARED_ROOT}/uv-cache}"
   export UV_TOOL_DIR="${UV_TOOL_DIR:-${MVS_SHARED_ROOT}/uv-tools}"
@@ -101,6 +103,7 @@ mvs_create_layout() {
     "${MVS_EVAL_OUTPUT_ROOT}" \
     "${MVS_LOG_DIR}" \
     "${MVS_RUNS_DIR}" \
+    "${MVS_PROMPT_EMBEDDING_DIR}" \
     "${UV_CACHE_DIR}" \
     "${UV_TOOL_DIR}" \
     "${UV_TOOL_BIN_DIR}" \

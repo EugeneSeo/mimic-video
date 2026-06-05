@@ -22,13 +22,13 @@ from imaginaire.utils.config_helper import get_config_module, override
 
 def default_mimic_video_root() -> pathlib.Path:
     scratch = pathlib.Path(os.environ.get("SCRATCH", f"/cluster/scratch/{os.environ.get('USER', 'unknown')}"))
-    return pathlib.Path(os.environ.get("MIMIC_VIDEO_ROOT", os.environ.get("MVS_ROOT", scratch / "mimic_video")))
+    return pathlib.Path(os.environ.get("MIMIC_VIDEO_ROOT", scratch / "mimic_video"))
 
 
 def default_experiment_root() -> pathlib.Path:
     root = default_mimic_video_root()
-    experiment = os.environ.get("MIMIC_VIDEO_EXPERIMENT", os.environ.get("MVS_EXPERIMENT", "so101-homogeneous-rel"))
-    return pathlib.Path(os.environ.get("MIMIC_VIDEO_EXPERIMENT_ROOT", os.environ.get("MVS_EXP_ROOT", root / "experiments" / experiment)))
+    experiment = os.environ.get("MIMIC_VIDEO_EXPERIMENT", "so101-bottle-delta30")
+    return pathlib.Path(os.environ.get("MIMIC_VIDEO_EXPERIMENT_ROOT", root / "experiments" / experiment))
 
 
 def parse_args() -> argparse.Namespace:
@@ -47,7 +47,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--model-checkpoint",
         default=os.environ.get(
-            "MVS_VIDEO_LORA_PATH",
+            "MIMIC_VIDEO_VIDEO_LORA_CKPT_PATH",
             str(exp_root / "checkpoints/video_lora/checkpoints/model/iter_000001000.pt"),
         ),
     )

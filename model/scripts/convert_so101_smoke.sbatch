@@ -31,8 +31,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${REPO_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 MODEL_DIR="$REPO_ROOT/model"
 SCRATCH="${SCRATCH:-/cluster/scratch/${USER}}"
-MIMIC_VIDEO_ROOT="${MIMIC_VIDEO_ROOT:-${MVS_ROOT:-$SCRATCH/mimic_video}}"
-LOG_DIR="${LOG_DIR:-${MVS_LOG_DIR:-$MIMIC_VIDEO_ROOT/logs}}"
+MIMIC_VIDEO_ROOT="${MIMIC_VIDEO_ROOT:-$SCRATCH/mimic_video}"
+LOG_DIR="${LOG_DIR:-${MIMIC_VIDEO_LOG_DIR:-$MIMIC_VIDEO_ROOT/logs}}"
 
 REPO_ID="${REPO_ID:-dreamdifferent/so101_bottle}"
 CAMERA_KEY="${CAMERA_KEY:-observation.images.front}"
@@ -52,9 +52,9 @@ mkdir -p "$(dirname "$OUTPUT_DIR")"
 
 export TMPDIR="$RUN_TMP_DIR"
 export UV_CACHE_DIR="$RUN_TMP_DIR/uv-cache"
-export HF_HOME="${HF_HOME:-${MVS_SHARED_ROOT:+$MVS_SHARED_ROOT/hf-home}}"
+export HF_HOME="${HF_HOME:-${MIMIC_VIDEO_SHARED_ROOT:+$MIMIC_VIDEO_SHARED_ROOT/hf-home}}"
 export HF_HOME="${HF_HOME:-$MIMIC_VIDEO_ROOT/shared/hf-home}"
-export HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-${MVS_SHARED_ROOT:+$MVS_SHARED_ROOT/hf-datasets-cache}}"
+export HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-${MIMIC_VIDEO_SHARED_ROOT:+$MIMIC_VIDEO_SHARED_ROOT/hf-datasets-cache}}"
 export HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-$MIMIC_VIDEO_ROOT/shared/hf-datasets-cache}"
 export PYTHONUNBUFFERED=1
 

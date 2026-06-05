@@ -5,8 +5,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/lib/paths.sh"
 
-mvs_load_paths "${1:-${MVS_EXPERIMENT:-so101-homogeneous-delta30}}"
-mvs_create_layout
+mimic_video_load_paths "${1:-${MIMIC_VIDEO_EXPERIMENT:-so101-bottle-delta30}}"
+mimic_video_create_layout
 
 if ! command -v uv >/dev/null 2>&1; then
   echo "ERROR: uv not found in PATH." >&2
@@ -22,13 +22,13 @@ else
 fi
 
 echo
-echo "HF CLI setup complete."
-echo "Experiment: ${MVS_EXPERIMENT}"
-echo "MVS root: ${MVS_ROOT}"
+echo "SO-101 environment setup complete."
+echo "Experiment: ${MIMIC_VIDEO_EXPERIMENT}"
+echo "Mimic Video root: ${MIMIC_VIDEO_ROOT}"
 echo
 echo "For this shell, run:"
 echo "  export SCRATCH=${SCRATCH}"
-echo "  export MVS_EXPERIMENT=${MVS_EXPERIMENT}"
+echo "  export MIMIC_VIDEO_EXPERIMENT=${MIMIC_VIDEO_EXPERIMENT}"
 echo "  export UV_CACHE_DIR=${UV_CACHE_DIR}"
 echo "  export UV_TOOL_DIR=${UV_TOOL_DIR}"
 echo "  export UV_TOOL_BIN_DIR=${UV_TOOL_BIN_DIR}"

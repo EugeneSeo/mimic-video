@@ -15,6 +15,9 @@ Environment:
   SO101_ACTION_DATASET_REPO Source dataset for action zarr conversion. Defaults to SO101_DATASET_REPO.
   VIDEO_DATA_DIR_NAME      Output dir name under shared/video_data.
   ACTION_ZARR_DIR_NAME     Output dir name under shared/data.
+  SO101_VIDEO_SOURCE_FPS   Source video FPS. Defaults to experiment config.
+  SO101_VIDEO_TARGET_FPS   Target video FPS after real frame subsampling.
+  SO101_VIEW_LAYOUT        Current SO-101 video layout, usually hstack.
   DRY_RUN=1                Print sbatch commands without submitting.
 
 Examples:
@@ -24,7 +27,7 @@ Examples:
 EOF
 }
 
-experiment="${MVS_EXPERIMENT:-so101-homogeneous-delta30}"
+experiment="${MIMIC_VIDEO_EXPERIMENT:-so101-bottle-delta30}"
 target="${PREPROCESS_TARGET:-all}"
 
 if [[ $# -gt 0 && "$1" != --* ]]; then
@@ -59,10 +62,10 @@ case "${target}" in
     ;;
 esac
 
-mvs_load_paths "${experiment}"
-mvs_create_layout
+mimic_video_load_paths "${experiment}"
+mimic_video_create_layout
 
-submit_sbatch() {
+run_sbatch_step() {
   local label="$1"
   shift
   {
@@ -83,8 +86,8 @@ submit_sbatch() {
 }
 
 common_sbatch_args=(
-  --output="${MVS_LOG_DIR}/%x-%j.out"
-  --error="${MVS_LOG_DIR}/%x-%j.err"
+  --output="${MIMIC_VIDEO_LOG_DIR}/%x-%j.out"
+  --error="${MIMIC_VIDEO_LOG_DIR}/%x-%j.err"
   "$@"
 )
 
@@ -93,16 +96,16 @@ if [[ "${target}" == "video" || "${target}" == "all" ]]; then
   export REPO_ROOT
   export HF_HOME HF_HUB_CACHE HF_DATASETS_CACHE
   export REPO_ID="${REPO_ID:-${SO101_DATASET_REPO}}"
-  export OUTPUT_DIR="${OUTPUT_DIR:-${MVS_SHARED_VIDEO_DATA_DIR}}"
+  export OUTPUT_DIR="${OUTPUT_DIR:-${MIMIC_VIDEO_SHARED_VIDEO_DATA_DIR}}"
   export MAX_EPISODES="${MAX_EPISODES-}"
-  export SOURCE_FPS="${SOURCE_FPS:-30}"
-  export TARGET_FPS="${TARGET_FPS:-5}"
-  export VIEW_LAYOUT="${VIEW_LAYOUT:-hstack}"
+  export SOURCE_FPS="${SOURCE_FPS:-${SO101_VIDEO_SOURCE_FPS}}"
+  export TARGET_FPS="${TARGET_FPS:-${SO101_VIDEO_TARGET_FPS}}"
+  export VIEW_LAYOUT="${VIEW_LAYOUT:-${SO101_VIEW_LAYOUT}}"
   export VIDEO_BACKEND="${VIDEO_BACKEND:-pyav}"
-  export LOG_DIR="${MVS_LOG_DIR}"
+  export LOG_DIR="${MIMIC_VIDEO_LOG_DIR}"
 
   video_job_id="$(
-    submit_sbatch \
+    run_sbatch_step \
       "SO-101 two-camera hstack video conversion" \
       sbatch "${common_sbatch_args[@]}" "${REPO_ROOT}/model/scripts/convert_so101_two_camera_video.sbatch"
   )"
@@ -111,8 +114,8 @@ if [[ "${target}" == "video" || "${target}" == "all" ]]; then
     video_t5_dependency=(--dependency="afterok:${video_job_id}")
   fi
 
-  export DATASET_PATH="${DATASET_PATH:-${MVS_SHARED_VIDEO_DATA_DIR}}"
-  submit_sbatch \
+  export DATASET_PATH="${DATASET_PATH:-${MIMIC_VIDEO_SHARED_VIDEO_DATA_DIR}}"
+  run_sbatch_step \
     "SO-101 video T5 precompute" \
     sbatch "${video_t5_dependency[@]}" "${common_sbatch_args[@]}" "${REPO_ROOT}/model/scripts/precompute_so101_two_camera_video_t5.sbatch"
 fi
@@ -122,15 +125,15 @@ if [[ "${target}" == "action" || "${target}" == "all" ]]; then
   export REPO_ROOT
   export HF_HOME HF_HUB_CACHE HF_DATASETS_CACHE
   export REPO_ID="${ACTION_REPO_ID:-${SO101_ACTION_DATASET_REPO}}"
-  export OUTPUT_DIR="${ACTION_OUTPUT_DIR:-${MVS_SHARED_ACTION_DATA_DIR}}"
+  export OUTPUT_DIR="${ACTION_OUTPUT_DIR:-${MIMIC_VIDEO_SHARED_ACTION_DATA_DIR}}"
   export MAX_EPISODES="${ACTION_MAX_EPISODES-}"
   export SKIP_VIDEO="${SKIP_VIDEO:-1}"
   export VIDEO_BACKEND="${VIDEO_BACKEND:-pyav}"
   export OVERWRITE="${OVERWRITE:-0}"
-  export LOG_DIR="${MVS_LOG_DIR}"
+  export LOG_DIR="${MIMIC_VIDEO_LOG_DIR}"
 
   action_job_id="$(
-    submit_sbatch \
+    run_sbatch_step \
       "SO-101 action zarr conversion" \
       sbatch "${common_sbatch_args[@]}" "${REPO_ROOT}/model/scripts/convert_so101_smoke.sbatch"
   )"
@@ -139,8 +142,8 @@ if [[ "${target}" == "action" || "${target}" == "all" ]]; then
     action_t5_dependency=(--dependency="afterok:${action_job_id}")
   fi
 
-  export DATA_DIR="${DATA_DIR:-${MVS_SHARED_ACTION_DATA_DIR}}"
-  submit_sbatch \
+  export DATA_DIR="${DATA_DIR:-${MIMIC_VIDEO_SHARED_ACTION_DATA_DIR}}"
+  run_sbatch_step \
     "SO-101 action T5 precompute" \
     sbatch "${action_t5_dependency[@]}" "${common_sbatch_args[@]}" "${REPO_ROOT}/model/scripts/precompute_so101_t5_smoke.sbatch"
 fi

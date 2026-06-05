@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import json
+import os
 import pathlib
 import socketserver
 import sys
@@ -23,8 +24,37 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from mimic_video_so101_policy import MimicVideoSO101Policy, SO101MimicVideoPolicyConfig  # noqa: E402
-from offline_eval import DEFAULT_ACTION_CKPT, DEFAULT_DATA_DIR, DEFAULT_EXPERIMENT, DEFAULT_VIDEO_CKPT  # noqa: E402
 from websocket_protocol import PAYLOAD_PROTOCOL, TCP_TRANSPORT, packb, recv_framed, send_framed, unpackb  # noqa: E402
+
+_DEFAULT_ROOT = pathlib.Path(os.environ.get("MIMIC_VIDEO_ROOT", f"/cluster/scratch/{os.environ.get('USER', 'unknown')}/mimic_video"))
+_DEFAULT_EXPERIMENT = os.environ.get("MIMIC_VIDEO_EXPERIMENT", "so101-bottle-delta30")
+_DEFAULT_EXPERIMENT_ROOT = pathlib.Path(
+    os.environ.get("MIMIC_VIDEO_EXPERIMENT_ROOT", _DEFAULT_ROOT / "experiments" / _DEFAULT_EXPERIMENT)
+)
+DEFAULT_EXPERIMENT = os.environ.get(
+    "POLICY_EXPERIMENT_NAME",
+    "w2a_so101_delta_30hz_partial_bridge_init_"
+    "v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused_"
+    "lr1.000e-04_layer20_bsz4",
+)
+DEFAULT_VIDEO_CKPT = pathlib.Path(
+    os.environ.get(
+        "MIMIC_VIDEO_BACKBONE_PATH",
+        _DEFAULT_ROOT / "shared/checkpoints/video_backbone/v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused.pt",
+    )
+)
+DEFAULT_ACTION_CKPT = pathlib.Path(
+    os.environ.get(
+        "MIMIC_VIDEO_ACTION_DECODER_CKPT_PATH",
+        _DEFAULT_EXPERIMENT_ROOT / "checkpoints/action_decoder/latest",
+    )
+)
+DEFAULT_DATA_DIR = pathlib.Path(
+    os.environ.get(
+        "MIMIC_VIDEO_SHARED_ACTION_DATA_DIR",
+        _DEFAULT_ROOT / "shared/data/so101_bottle_action_only_full",
+    )
+)
 
 
 @dataclasses.dataclass(frozen=True)

@@ -7,12 +7,13 @@ tags:
   - lora
   - so101
   - mimic-video
+  - multi-object
 ---
 
-# Mimic Video SO-101 2-Camera HStack 5fps V2W LoRA
+# Mimic Video SO-101 Multi-Object 2-Camera HStack 5fps V2W LoRA
 
 This repository contains a LoRA adapter for the Mimic Video / Cosmos Predict2
-video-to-world backbone, fine-tuned on `dreamdifferent/so101_bottle`.
+video-to-world backbone, fine-tuned on `dreamdifferent/so101_multi_object_new`.
 
 ## Checkpoint
 
@@ -37,14 +38,13 @@ not directly with `AutoPeftModel.from_pretrained(...)`.
 
 ## Previews
 
-`previews/` contains ground-truth versus predicted SO-101 videos rendered from
-the 1000-step adapter checkpoint.
+`previews/` may contain ground-truth versus predicted SO-101 videos rendered
+from the 1000-step adapter checkpoint.
 
 ## Notes
 
-The dataset was converted from the original SO-101 30 fps videos by actual frame
+The dataset was converted from the original SO-101 videos by actual frame
 subsampling to 5 fps. The fps value was not changed only at the container level.
 
-For action-decoder training, this adapter can be injected dynamically into the
-frozen video backbone while the action zarr stores only state/action/language.
-The corresponding 5 fps hstack mp4 dataset should be supplied separately.
+This is the heterogeneous / multi-object counterpart of the SO-101 bottle-only
+2-camera hstack 5 fps Video2World LoRA.

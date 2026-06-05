@@ -5,11 +5,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/lib/paths.sh"
 
-mvs_load_paths "${1:-${MVS_EXPERIMENT:-so101-homogeneous-delta30}}"
-mvs_create_layout
+mimic_video_load_paths "${1:-${MIMIC_VIDEO_EXPERIMENT:-so101-bottle-delta30}}"
+mimic_video_create_layout
 
 if ! command -v hf >/dev/null 2>&1; then
-  echo "ERROR: hf CLI not found. Run scripts/so101/setup_hf_cli.sh first or activate model/.venv." >&2
+  echo "ERROR: hf CLI not found. Run scripts/so101/setup_env.sh first or activate model/.venv." >&2
   exit 1
 fi
 
@@ -25,7 +25,7 @@ download_file() {
 
   if [[ -z "${repo}" ]]; then
     echo "ERROR: HF repo is not set for ${file}." >&2
-    echo "Set it in scripts/so101/artifacts/${MVS_EXPERIMENT}.env or export it before running." >&2
+    echo "Set it in scripts/so101/artifacts/${MIMIC_VIDEO_EXPERIMENT}.env or export it before running." >&2
     exit 1
   fi
 
@@ -43,7 +43,7 @@ download_checkpoint() {
 
   if [[ -z "${repo}" ]]; then
     echo "ERROR: HF repo is not set for ${file}." >&2
-    echo "Set it in scripts/so101/artifacts/${MVS_EXPERIMENT}.env or export it before running." >&2
+    echo "Set it in scripts/so101/artifacts/${MIMIC_VIDEO_EXPERIMENT}.env or export it before running." >&2
     exit 1
   fi
 
@@ -62,7 +62,7 @@ download_checkpoint() {
   esac
 }
 
-download_checkpoint "${VIDEO_LORA_REPO}" "${VIDEO_LORA_FILE}" "${MVS_EXP_VIDEO_LORA_DIR}"
+download_checkpoint "${VIDEO_LORA_REPO}" "${VIDEO_LORA_FILE}" "${MIMIC_VIDEO_EXPERIMENT_VIDEO_LORA_DIR}"
 
 if [[ "${ACTION_ASSETS_ENABLED}" != "1" ]]; then
   echo
@@ -79,20 +79,20 @@ else
 fi
 
 if [[ -n "${BASE_VIDEO_REPO}" ]]; then
-  download_file "${BASE_VIDEO_REPO}" "${BASE_VIDEO_FILE}" "${MVS_SHARED_VIDEO_BACKBONE_DIR}"
+  download_file "${BASE_VIDEO_REPO}" "${BASE_VIDEO_FILE}" "${MIMIC_VIDEO_SHARED_VIDEO_BACKBONE_DIR}"
 else
   echo
   echo "Base video backbone repo not set."
   echo "Download it from the original Mimic Video release with:"
-  echo "  bash scripts/so101/download_base_backbone.sh ${MVS_EXPERIMENT}"
+  echo "  bash scripts/so101/download_base_backbone.sh ${MIMIC_VIDEO_EXPERIMENT}"
   echo
   echo "Or place this file manually if you already have it:"
-  echo "  ${MVS_VIDEO_BACKBONE_PATH}"
+  echo "  ${MIMIC_VIDEO_BACKBONE_PATH}"
   echo
   echo "If the backbone is in a different HF repo, rerun with:"
-  echo "  BASE_VIDEO_REPO=<owner/repo> bash scripts/so101/download_assets.sh ${MVS_EXPERIMENT}"
+  echo "  BASE_VIDEO_REPO=<owner/repo> bash scripts/so101/download_assets.sh ${MIMIC_VIDEO_EXPERIMENT}"
 fi
 
 echo
-echo "Checkpoint files currently present for ${MVS_EXPERIMENT}:"
-find "${MVS_EXP_CHECKPOINT_ROOT}" "${MVS_SHARED_VIDEO_BACKBONE_DIR}" -type f -name '*.pt' -print | sort
+echo "Checkpoint files currently present for ${MIMIC_VIDEO_EXPERIMENT}:"
+find "${MIMIC_VIDEO_EXPERIMENT_CHECKPOINT_ROOT}" "${MIMIC_VIDEO_SHARED_VIDEO_BACKBONE_DIR}" -type f -name '*.pt' -print | sort

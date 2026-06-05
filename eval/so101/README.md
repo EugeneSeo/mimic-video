@@ -11,7 +11,7 @@ run_server.sh          low-level direct wrapper around policy_server.py
 Prefer the root-level SO-101 workflow:
 
 ```bash
-bash scripts/so101/setup_env.sh so101-bottle-delta30
+bash scripts/so101/setup_env.sh
 bash scripts/so101/check_assets.sh so101-bottle-delta30
 bash scripts/so101/run_policy_server.sh so101-bottle-delta30
 ```

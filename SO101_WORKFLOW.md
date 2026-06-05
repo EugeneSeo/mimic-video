@@ -22,9 +22,24 @@ so101-multi-object-delta30   multi-object dataset, 30Hz incremental-delta action
 ```bash
 cd /cluster/project/cvg/students/$USER/workspace/mimic-video
 
-bash scripts/so101/setup_env.sh so101-bottle-delta30
+bash scripts/so101/setup_env.sh
 export PATH="$SCRATCH/mimic_video/shared/uv-bin:$PATH"
 hf auth login
+```
+
+Setup is shared across SO-101 experiments and does not take an experiment name.
+Choose the experiment only when running a workflow command, either as the first
+argument:
+
+```bash
+bash scripts/so101/preprocess_data.sh so101-bottle-delta30 --target all
+```
+
+or as a shell default:
+
+```bash
+export MIMIC_VIDEO_EXPERIMENT=so101-bottle-delta30
+bash scripts/so101/preprocess_data.sh --target all
 ```
 
 Use `DRY_RUN=1` on wrappers to print the `sbatch` command without submitting.
@@ -34,7 +49,7 @@ Use `DRY_RUN=1` on wrappers to print the `sbatch` command without submitting.
 Run once per scratch workspace. The base video backbone is shared by all SO-101 experiments.
 
 ```bash
-bash scripts/so101/download_base_backbone.sh so101-bottle-delta30
+bash scripts/so101/download_base_backbone.sh
 ```
 
 ## Preprocess

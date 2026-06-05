@@ -2,16 +2,27 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck disable=SC1091
-source "${SCRIPT_DIR}/lib/paths.sh"
+REPO_ROOT="${REPO_ROOT:-$(cd "${SCRIPT_DIR}/../.." && pwd)}"
+SCRATCH="${SCRATCH:-/cluster/scratch/${USER}}"
+MIMIC_VIDEO_ROOT="${MIMIC_VIDEO_ROOT:-${SCRATCH}/mimic_video}"
+MIMIC_VIDEO_SHARED_ROOT="${MIMIC_VIDEO_SHARED_ROOT:-${MIMIC_VIDEO_ROOT}/shared}"
+MIMIC_VIDEO_SHARED_CHECKPOINT_ROOT="${MIMIC_VIDEO_SHARED_CHECKPOINT_ROOT:-${MIMIC_VIDEO_SHARED_ROOT}/checkpoints}"
+MIMIC_VIDEO_SHARED_VIDEO_BACKBONE_DIR="${MIMIC_VIDEO_SHARED_VIDEO_BACKBONE_DIR:-${MIMIC_VIDEO_SHARED_CHECKPOINT_ROOT}/video_backbone}"
+UV_TOOL_BIN_DIR="${UV_TOOL_BIN_DIR:-${MIMIC_VIDEO_SHARED_ROOT}/uv-bin}"
+BASE_VIDEO_FILE="${BASE_VIDEO_FILE:-v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused.pt}"
+MIMIC_VIDEO_BACKBONE_PATH="${MIMIC_VIDEO_BACKBONE_PATH:-${MIMIC_VIDEO_SHARED_VIDEO_BACKBONE_DIR}/${BASE_VIDEO_FILE}}"
+export REPO_ROOT SCRATCH MIMIC_VIDEO_ROOT MIMIC_VIDEO_SHARED_ROOT
+export MIMIC_VIDEO_SHARED_CHECKPOINT_ROOT MIMIC_VIDEO_SHARED_VIDEO_BACKBONE_DIR
+export UV_TOOL_BIN_DIR BASE_VIDEO_FILE MIMIC_VIDEO_BACKBONE_PATH
+export PATH="${UV_TOOL_BIN_DIR}:${PATH}"
 
-experiment="${MIMIC_VIDEO_EXPERIMENT:-so101-bottle-delta30}"
-if [[ $# -gt 0 && "$1" != --* ]]; then
-  experiment="$1"
-  shift
+if [[ $# -gt 0 ]]; then
+  echo "ERROR: download_base_backbone.sh does not take an experiment name." >&2
+  echo "Run it once per scratch workspace: bash scripts/so101/download_base_backbone.sh" >&2
+  exit 1
 fi
-mimic_video_load_paths "${experiment}"
-mimic_video_create_layout
+
+mkdir -p "${MIMIC_VIDEO_SHARED_VIDEO_BACKBONE_DIR}"
 
 if [[ -f "${MIMIC_VIDEO_BACKBONE_PATH}" ]]; then
   echo "Base video backbone already present:"
@@ -58,7 +69,7 @@ elif command -v hf >/dev/null 2>&1; then
     --include "action_decoder/w2a_bridge_v2w_bridge_lora*"
 else
   echo "ERROR: need either model/.venv with huggingface_hub, system python with huggingface_hub, or hf CLI." >&2
-  echo "Run scripts/so101/setup_env.sh ${MIMIC_VIDEO_EXPERIMENT}, then ensure its uv-bin is on PATH." >&2
+  echo "Run scripts/so101/setup_env.sh, then ensure its uv-bin is on PATH." >&2
   exit 1
 fi
 

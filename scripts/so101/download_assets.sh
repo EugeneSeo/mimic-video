@@ -84,7 +84,7 @@ else
   echo
   echo "Base video backbone repo not set."
   echo "Download it from the original Mimic Video release with:"
-  echo "  bash scripts/so101/download_base_backbone.sh ${MIMIC_VIDEO_EXPERIMENT}"
+  echo "  bash scripts/so101/download_base_backbone.sh"
   echo
   echo "Or place this file manually if you already have it:"
   echo "  ${MIMIC_VIDEO_BACKBONE_PATH}"

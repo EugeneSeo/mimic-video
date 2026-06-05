@@ -29,7 +29,7 @@ export PATH="/usr/sbin:/sbin:$PATH"
 #
 # Optional knobs:
 #   INIT_NAME=random | partial_bridge_init
-#   DATA_CONFIG=so101 | so101_relative
+#   DATA_CONFIG=so101 | so101_relative | so101_delta | so101_delta_30hz
 #   VIDEO_CKPT=v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused | v2w_pretrained_cosmos
 #   VIDEO_LORA_CKPT=/path/to/so101_v2w_lora_adapter.pt
 #   SO101_VIDEO_DIR=/path/to/5fps/video2world/dataset

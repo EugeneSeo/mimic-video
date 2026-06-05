@@ -53,6 +53,11 @@ def parse_args() -> argparse.Namespace:
         help="Optional external hstack video dir when exporting from an action-only zarr.",
     )
     parser.add_argument("--video-fps", type=float, default=5.0)
+    parser.add_argument(
+        "--skip-cache",
+        action="store_true",
+        help="Compute statistics without writing the dataset .statistics_cache under data-dir.",
+    )
     return parser.parse_args()
 
 
@@ -68,7 +73,7 @@ def main() -> None:
     config = override(config, ["--", f"experiment={args.experiment_name}"])
     data_config = instantiate(config.data_config)
     dataset = hydra.utils.instantiate(data_config.dataset.dataset, train=True, verbose=False)
-    stats = dataset.get_statistics()
+    stats = dataset._compute_statistics() if args.skip_cache else dataset.get_statistics()
 
     payload = {
         "metadata": {

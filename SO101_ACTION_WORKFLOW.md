@@ -1,7 +1,7 @@
 # SO-101 Action Decoder Workflow
 
 This document covers SO-101 action zarr conversion, absolute action-decoder
-training, relative action-decoder training, and checkpoint upload conventions.
+training, delta action-decoder training, and checkpoint upload conventions.
 Video backbone data preparation is documented in `SO101_VIDEO_WORKFLOW.md`.
 
 ## Path Convention
@@ -21,7 +21,7 @@ video LoRA/action-decoder checkpoints and logs live under
 
 ## Representations
 
-Two SO-101 action representations are available:
+SO-101 action representations used in this repo:
 
 ```text
 DATA_CONFIG=so101
@@ -29,11 +29,19 @@ DATA_CONFIG=so101
   deployment: send predicted action as the target joint position
 
 DATA_CONFIG=so101_relative
-  action target: future_joint - current_joint
-  deployment: absolute_target = current_joint + predicted_delta
+  action target: future_joint[t] - joint_state_at_policy_call
+  deployment: absolute_target[t] = joint_state_at_policy_call + predicted_offset[t]
+
+DATA_CONFIG=so101_delta
+  action target: incremental delta at 5 Hz
+  deployment: target = previous_target + predicted_delta[t]
+
+DATA_CONFIG=so101_delta_30hz
+  action target: incremental delta at 30 Hz
+  deployment: target = previous_target + predicted_delta[t]
 ```
 
-Both use:
+The 5 Hz action configs use:
 
 ```text
 obs video:       5 frames at 5 Hz
@@ -41,8 +49,9 @@ future video:   56 frames at 5 Hz
 action target:  15 actions at 5 Hz
 ```
 
-The action chunk covers 3 seconds. For guarded robot rollout, execute only the
-first 1 to 5 actions before replanning.
+`so101_delta_30hz` keeps the same 3-second action horizon as 90 actions at
+30 Hz. For guarded robot rollout, execute only an early prefix before
+replanning.
 
 ## Checkpoints And Repos
 
@@ -179,7 +188,7 @@ GPUs, `GLOBAL_BATCH_SIZE=4`, and `GRAD_ACCUM_ITER=8`:
 2 GPUs * 2 samples/GPU * 8 grad accumulation = 32
 ```
 
-## Train Relative Action Decoder
+## Train Reference-Offset Action Decoder
 
 For `so101-homogeneous-rel`, the wrapper defaults to `DATA_CONFIG=so101_relative`
 and `INIT_NAME=partial_bridge_init`:
@@ -210,6 +219,35 @@ SO101_NUM_VAL_EPISODES=0 \
 WANDB_MODE=online \
 WANDB_PROJECT=mimic-video-so101-relative \
 RUNS_DIR=$MVS_ROOT/experiments/so101-homogeneous-rel/runs/action_decoder_relative \
+sbatch --time=24:00:00 model/scripts/train_so101_smoke.sbatch
+```
+
+## Train 30 Hz Incremental Delta Action Decoder
+
+```bash
+cd /cluster/project/cvg/students/eugseo/workspace/mimic-video
+
+DATA_DIR=/cluster/scratch/eugseo/mimic_video_data/so101_bottle_action_only_full \
+SO101_VIDEO_DIR=/cluster/scratch/eugseo/mimic_video_video_data/so101_bottle_front_wrist_hstack_5fps_full \
+SO101_VIDEO_FPS=5 \
+DATA_CONFIG=so101_delta_30hz \
+INIT_NAME=partial_bridge_init \
+VIDEO_CKPT=v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused \
+VIDEO_LORA_CKPT=/cluster/scratch/eugseo/mimic_video_runs_so101_2cam_v2w_full_5fps_24h_2gpu_bsz2_acc8/posttraining/video2world_so101_two_camera/v2w_so101_two_camera_lora_rank256_lr1.778e-04_bsz4/checkpoints/model/iter_000001000.pt \
+RUNS_DIR=/cluster/scratch/eugseo/mimic_video_runs_so101_w2a_delta_30hz_bridge_init_so101_v2w_lora_hstack_video_5hz_action \
+EXPERIMENT=w2a_so101_delta_30hz_partial_bridge_init_v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused_lr1.000e-04_layer20_bsz4 \
+RUN_NAME=w2a_so101_delta_30hz_partial_bridge_init_v2w_lora_hstack_5hz_iter5000 \
+NUM_GPUS=2 \
+GLOBAL_BATCH_SIZE=4 \
+GRAD_ACCUM_ITER=8 \
+LR_TAG=1.000e-04 \
+MAX_ITER=5000 \
+SAVE_ITER=500 \
+KEEP_LATEST_ONLY=true \
+RUN_VALIDATION=false \
+SO101_NUM_VAL_EPISODES=0 \
+WANDB_MODE=online \
+WANDB_PROJECT=mimic-video-so101-w2a \
 sbatch --time=24:00:00 model/scripts/train_so101_smoke.sbatch
 ```
 

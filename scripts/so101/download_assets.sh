@@ -5,7 +5,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/lib/paths.sh"
 
-mimic_video_load_paths "${1:-${MIMIC_VIDEO_EXPERIMENT:-so101-bottle-delta30}}"
+config_env="${MIMIC_VIDEO_SO101_CONFIG_FILE:-${SCRIPT_DIR}/experiments/so101-bottle-absolute5.env}"
+if [[ $# -gt 0 && "$1" != --* ]]; then
+  config_env="$1"
+  shift
+fi
+mimic_video_load_paths "${config_env}"
 mimic_video_create_layout
 
 if ! command -v hf >/dev/null 2>&1; then
@@ -25,7 +30,7 @@ download_file() {
 
   if [[ -z "${repo}" ]]; then
     echo "ERROR: HF repo is not set for ${file}." >&2
-    echo "Set it in scripts/so101/artifacts/${MIMIC_VIDEO_EXPERIMENT}.env or export it before running." >&2
+    echo "Set it in the config env or matching scripts/so101/artifacts/*.env file." >&2
     exit 1
   fi
 
@@ -43,7 +48,7 @@ download_checkpoint() {
 
   if [[ -z "${repo}" ]]; then
     echo "ERROR: HF repo is not set for ${file}." >&2
-    echo "Set it in scripts/so101/artifacts/${MIMIC_VIDEO_EXPERIMENT}.env or export it before running." >&2
+    echo "Set it in the config env or matching scripts/so101/artifacts/*.env file." >&2
     exit 1
   fi
 
@@ -90,7 +95,7 @@ else
   echo "  ${MIMIC_VIDEO_BACKBONE_PATH}"
   echo
   echo "If the backbone is in a different HF repo, rerun with:"
-  echo "  BASE_VIDEO_REPO=<owner/repo> bash scripts/so101/download_assets.sh ${MIMIC_VIDEO_EXPERIMENT}"
+  echo "  add BASE_VIDEO_REPO=\"<owner/repo>\" to the config env, then rerun this command."
 fi
 
 echo

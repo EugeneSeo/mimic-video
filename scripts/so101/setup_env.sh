@@ -8,7 +8,7 @@ usage() {
 Usage: bash scripts/so101/setup_env.sh
 
 Sets up shared SO-101 tool/cache directories only.
-Choose an experiment when running preprocess/train/render/eval wrappers.
+Pass a config env file when running preprocess/train/render/eval wrappers.
 EOF
 }
 
@@ -20,9 +20,9 @@ case "${1:-}" in
     exit 0
     ;;
   *)
-    echo "ERROR: setup_env.sh does not take an experiment name." >&2
-    echo "Choose the experiment when running workflow commands instead." >&2
-    echo "Example: bash scripts/so101/preprocess_data.sh so101-bottle-delta30 --target all" >&2
+    echo "ERROR: setup_env.sh does not take a config env file." >&2
+    echo "Pass the config env file when running workflow commands instead." >&2
+    echo "Example: bash scripts/so101/preprocess_data.sh scripts/so101/experiments/so101-bottle-delta30.env --target all" >&2
     exit 1
     ;;
 esac

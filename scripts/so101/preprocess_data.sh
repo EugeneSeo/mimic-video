@@ -8,30 +8,22 @@ source "${SCRIPT_DIR}/lib/paths.sh"
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/so101/preprocess_data.sh [experiment] [--target video|action|all] [sbatch args...]
+  scripts/so101/preprocess_data.sh config.env [--target video|action|all] [sbatch args...]
 
-Environment:
-  SO101_DATASET_REPO       LeRobot/HF source dataset for video conversion.
-  SO101_ACTION_DATASET_REPO Source dataset for action zarr conversion. Defaults to SO101_DATASET_REPO.
-  VIDEO_DATA_DIR_NAME      Output dir name under shared/video_data.
-  ACTION_ZARR_DIR_NAME     Output dir name under shared/data.
-  SO101_VIDEO_SOURCE_FPS   Source video FPS. Defaults to experiment config.
-  SO101_VIDEO_TARGET_FPS   Target video FPS after real frame subsampling.
-  SO101_VIEW_LAYOUT        Current SO-101 video layout, usually hstack.
-  DRY_RUN=1                Print sbatch commands without submitting.
+Config:
+  Put dataset, output, timing, and checkpoint/HF settings in config.env.
+  The wrapper loads config.env and forwards the resolved values to sbatch.
 
 Examples:
-  SO101_DATASET_REPO=dreamdifferent/so101_multi_object_new \
-  VIDEO_DATA_DIR_NAME=so101_multi_object_front_wrist_hstack_5fps_full \
-  DRY_RUN=1 scripts/so101/preprocess_data.sh so101-multi-object --target video
+  DRY_RUN=1 scripts/so101/preprocess_data.sh scripts/so101/experiments/so101-bottle-delta30.env --target all
 EOF
 }
 
-experiment="${MIMIC_VIDEO_EXPERIMENT:-so101-bottle-delta30}"
+config_env="${MIMIC_VIDEO_SO101_CONFIG_FILE:-${SCRIPT_DIR}/experiments/so101-bottle-delta30.env}"
 target="${PREPROCESS_TARGET:-all}"
 
 if [[ $# -gt 0 && "$1" != --* ]]; then
-  experiment="$1"
+  config_env="$1"
   shift
 fi
 while [[ $# -gt 0 ]]; do
@@ -62,7 +54,7 @@ case "${target}" in
     ;;
 esac
 
-mimic_video_load_paths "${experiment}"
+mimic_video_load_paths "${config_env}"
 mimic_video_create_layout
 
 run_sbatch_step() {

@@ -12,20 +12,19 @@ Prefer the root-level SO-101 workflow:
 
 ```bash
 bash scripts/so101/setup_env.sh
-bash scripts/so101/check_assets.sh so101-bottle-delta30
-bash scripts/so101/run_policy_server.sh so101-bottle-delta30
+bash scripts/so101/check_assets.sh scripts/so101/experiments/so101-bottle-delta30.env
+bash scripts/so101/run_policy_server.sh scripts/so101/experiments/so101-bottle-delta30.env
 ```
 
-The wrapper loads `scripts/so101/experiments/<experiment>.env` and optional
-`scripts/so101/artifacts/<experiment>.env`, then passes explicit checkpoint and
-stats paths into `policy_server.py`.
+The wrapper takes a config env file, loads the optional matching artifact env file, then passes
+explicit checkpoint and stats paths into `policy_server.py`.
 
-## Experiments
+## Configs
 
 ```text
-so101-bottle-absolute5       bottle dataset, absolute 5Hz action decoder
-so101-bottle-delta30         bottle dataset, 30Hz incremental-delta action decoder
-so101-multi-object-delta30   multi-object dataset, 30Hz incremental-delta action decoder
+scripts/so101/experiments/so101-bottle-absolute5.env       bottle dataset, absolute 5Hz action decoder
+scripts/so101/experiments/so101-bottle-delta30.env         bottle dataset, 30Hz incremental-delta action decoder
+scripts/so101/experiments/so101-multi-object-delta30.env   multi-object dataset, 30Hz incremental-delta action decoder
 ```
 
 ## Request Schema

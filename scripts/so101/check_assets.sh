@@ -5,7 +5,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/lib/paths.sh"
 
-mimic_video_load_paths "${1:-${MIMIC_VIDEO_EXPERIMENT:-so101-bottle-delta30}}"
+config_env="${MIMIC_VIDEO_SO101_CONFIG_FILE:-${SCRIPT_DIR}/experiments/so101-bottle-delta30.env}"
+if [[ $# -gt 0 && "$1" != --* ]]; then
+  config_env="$1"
+  shift
+fi
+mimic_video_load_paths "${config_env}"
 mimic_video_create_layout
 
 missing=0
@@ -42,7 +47,6 @@ check_recommended_dir() {
   fi
 }
 
-echo "SO-101 experiment: ${MIMIC_VIDEO_EXPERIMENT}"
 echo "Config: ${MIMIC_VIDEO_SO101_CONFIG_FILE}"
 echo "Artifacts: ${MIMIC_VIDEO_SO101_ARTIFACT_FILE}"
 echo "Mimic Video root: ${MIMIC_VIDEO_ROOT}"

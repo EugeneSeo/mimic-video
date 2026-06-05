@@ -46,7 +46,20 @@ mimic_video_resolve_checkpoint_path() {
 }
 
 mimic_video_load_paths() {
-  local experiment="${1:-${MIMIC_VIDEO_EXPERIMENT:-so101-bottle-delta30}}"
+  local config_ref="${1:-}"
+  if [[ -z "${config_ref}" ]]; then
+    config_ref="${MIMIC_VIDEO_SO101_CONFIG_FILE:-$(mimic_video_so101_dir)/experiments/so101-bottle-delta30.env}"
+  fi
+
+  local experiment
+  local config_file
+  if [[ -f "${config_ref}" || "${config_ref}" == */* || "${config_ref}" == *.env ]]; then
+    config_file="${config_ref}"
+    experiment="$(basename "${config_file}" .env)"
+  else
+    experiment="${config_ref}"
+    config_file="$(mimic_video_so101_dir)/experiments/${experiment}.env"
+  fi
   export MIMIC_VIDEO_EXPERIMENT="${experiment}"
 
   export REPO_ROOT="${REPO_ROOT:-$(mimic_video_repo_root)}"
@@ -84,9 +97,8 @@ mimic_video_load_paths() {
   export HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-${MIMIC_VIDEO_SHARED_ROOT}/hf-datasets-cache}"
   export PATH="${UV_TOOL_BIN_DIR}:${PATH}"
 
-  local config_file="${MIMIC_VIDEO_SO101_CONFIG_FILE:-$(mimic_video_so101_dir)/experiments/${MIMIC_VIDEO_EXPERIMENT}.env}"
   if [[ ! -f "${config_file}" ]]; then
-    echo "ERROR: SO-101 experiment config not found: ${config_file}" >&2
+    echo "ERROR: SO-101 config env not found: ${config_file}" >&2
     return 1
   fi
   # shellcheck disable=SC1090

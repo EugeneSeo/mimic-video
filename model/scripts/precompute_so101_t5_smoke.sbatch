@@ -10,9 +10,6 @@
 
 set -euo pipefail
 
-# Euler compute nodes need this if Hugging Face/checkpoint access is triggered.
-module load eth_proxy
-
 ################################################################################
 # Precompute T5 language embeddings for converted SO-101 mimic-video zarr data.
 ################################################################################
@@ -33,6 +30,8 @@ LOG_DIR="${LOG_DIR:-${MIMIC_VIDEO_LOG_DIR:-$MIMIC_VIDEO_ROOT/logs}}"
 DATA_DIR="${DATA_DIR:-$MIMIC_VIDEO_ROOT/shared/data/so101_bottle_smoke}"
 RUN_NAME="${RUN_NAME:-so101_t5_${SLURM_JOB_ID:-manual}}"
 RUN_TMP_DIR="${RUN_TMP_DIR:-$REPO_ROOT/tmp/$RUN_NAME}"
+CHECKPOINT_ROOT="${MIMIC_VIDEO_SHARED_CHECKPOINT_ROOT:-$MIMIC_VIDEO_ROOT/shared/checkpoints}"
+CHECKPOINT_ROOT="${CHECKPOINT_ROOT:-$MODEL_DIR/checkpoints}"
 
 mkdir -p "$LOG_DIR"
 mkdir -p "$RUN_TMP_DIR/uv-cache" "$RUN_TMP_DIR/torch-cache"
@@ -48,8 +47,11 @@ export HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-$MIMIC_VIDEO_ROOT/shared/hf-datas
 export PYTHONUNBUFFERED=1
 export DATA_DIR
 
+# Euler compute nodes need this if Hugging Face/checkpoint access is triggered.
+module load eth_proxy
+
 # Make checkpoint resolution explicit even when running from unusual cwd.
-export COSMOS_PREDICT2_ARGS="${COSMOS_PREDICT2_ARGS:---checkpoints $MODEL_DIR/checkpoints}"
+export COSMOS_PREDICT2_ARGS="${COSMOS_PREDICT2_ARGS:---checkpoints $CHECKPOINT_ROOT}"
 
 # T5 import path is under model/; run from MODEL_DIR.
 cd "$MODEL_DIR"
@@ -64,7 +66,7 @@ if ! find "$DATA_DIR" -maxdepth 2 -name '*.zarr' -type d -print -quit | grep -q 
   exit 1
 fi
 
-T5_DIR="$MODEL_DIR/checkpoints/text_encoder/t5-11b"
+T5_DIR="$CHECKPOINT_ROOT/text_encoder/t5-11b"
 if [ ! -d "$T5_DIR" ]; then
   echo "ERROR: T5 checkpoint directory is missing: $T5_DIR"
   echo "Download/symlink checkpoints before running T5 precompute."

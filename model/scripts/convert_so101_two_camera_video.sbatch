@@ -68,7 +68,14 @@ if [ -n "$MAX_EPISODES" ]; then
   CMD+=(--max-episodes "$MAX_EPISODES")
 fi
 
-if [ -x "$MODEL_DIR/.venv/bin/python" ]; then
+if [ -x "$MODEL_DIR/.venv/bin/python" ] && "$MODEL_DIR/.venv/bin/python" - <<'PY' >/dev/null 2>&1
+import lerobot
+import imageio
+import numpy
+import pandas
+import tqdm
+PY
+then
   source "$MODEL_DIR/.venv/bin/activate"
   "${CMD[@]}"
 elif command -v uv >/dev/null 2>&1; then
@@ -76,6 +83,8 @@ elif command -v uv >/dev/null 2>&1; then
   uv run --extra cu126 "${CMD[@]}"
 else
   echo "ERROR: neither model/.venv nor uv is available."
+  echo "Set up the environment first:"
+  echo "  cd $MODEL_DIR && uv sync --extra cu126"
   exit 1
 fi
 

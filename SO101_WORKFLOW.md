@@ -88,6 +88,13 @@ bash scripts/so101/train_action_decoder.sh scripts/so101/experiments/so101-bottl
 bash scripts/so101/train_action_decoder.sh scripts/so101/experiments/so101-multi-object-delta30.env
 ```
 
+Pass extra sbatch options after the config env. For a longer 24 hour action
+decoder run:
+
+```bash
+bash scripts/so101/train_action_decoder.sh scripts/so101/experiments/so101-multi-object-delta30.env --time=24:00:00
+```
+
 Absolute 5Hz assets are mainly for old bottle eval/download:
 
 ```bash

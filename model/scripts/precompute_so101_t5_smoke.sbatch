@@ -4,7 +4,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem-per-cpu=16G
-#SBATCH --gpus=nvidia_a100_80gb_pcie:1
+#SBATCH --gpus=4090:1
 #SBATCH --output=/cluster/scratch/%u/mimic_video/logs/%x-%j.out
 #SBATCH --error=/cluster/scratch/%u/mimic_video/logs/%x-%j.err
 

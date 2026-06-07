@@ -56,6 +56,7 @@ REPO_ROOT="${REPO_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 MODEL_DIR="$REPO_ROOT/model"
 SCRATCH="${SCRATCH:-/cluster/scratch/${USER}}"
 MIMIC_VIDEO_ROOT="${MIMIC_VIDEO_ROOT:-$SCRATCH/mimic_video}"
+CHECKPOINT_ROOT="${MIMIC_VIDEO_SHARED_CHECKPOINT_ROOT:-$MIMIC_VIDEO_ROOT/shared/checkpoints}"
 MIMIC_VIDEO_EXPERIMENT="${MIMIC_VIDEO_EXPERIMENT:-manual}"
 MIMIC_VIDEO_EXPERIMENT_ROOT="${MIMIC_VIDEO_EXPERIMENT_ROOT:-$MIMIC_VIDEO_ROOT/experiments/$MIMIC_VIDEO_EXPERIMENT}"
 LOG_DIR="${LOG_DIR:-${MIMIC_VIDEO_LOG_DIR:-$MIMIC_VIDEO_EXPERIMENT_ROOT/logs}}"
@@ -157,9 +158,9 @@ cd "$MODEL_DIR"
 
 if [ "$INIT_NAME" = "partial_bridge_init" ]; then
   if [ "$VIDEO_CKPT" = "v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused" ]; then
-    PARTIAL_CKPT="$MODEL_DIR/checkpoints/action_decoder/w2a_bridge_v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused_lr1.000e-04_layer20_bsz256_iter_000014112.pt"
+    PARTIAL_CKPT="$CHECKPOINT_ROOT/action_decoder/w2a_bridge_v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused_lr1.000e-04_layer20_bsz256_iter_000014112.pt"
   elif [ "$VIDEO_CKPT" = "v2w_pretrained_cosmos" ]; then
-    PARTIAL_CKPT="$MODEL_DIR/checkpoints/action_decoder/w2a_bridge_v2w_pretrained_cosmos_lr1.000e-04_layer20_bsz256_iter_000014112.pt"
+    PARTIAL_CKPT="$CHECKPOINT_ROOT/action_decoder/w2a_bridge_v2w_pretrained_cosmos_lr1.000e-04_layer20_bsz256_iter_000014112.pt"
   else
     echo "ERROR: no partial Bridge-init checkpoint is configured for VIDEO_CKPT=$VIDEO_CKPT"
     exit 1
@@ -172,7 +173,7 @@ if [ "$INIT_NAME" = "partial_bridge_init" ]; then
   fi
 fi
 
-VIDEO_CKPT_PATH="$MODEL_DIR/checkpoints/video_backbone/${VIDEO_CKPT}.pt"
+VIDEO_CKPT_PATH="$CHECKPOINT_ROOT/video_backbone/${VIDEO_CKPT}.pt"
 if [ ! -f "$VIDEO_CKPT_PATH" ]; then
   echo "WARNING: expected frozen video backbone not found:"
   echo "  $VIDEO_CKPT_PATH"
@@ -208,6 +209,7 @@ echo "Host: $(hostname)"
 echo "Job id: ${SLURM_JOB_ID:-manual}"
 echo "Repo: $REPO_ROOT"
 echo "Model dir: $MODEL_DIR"
+echo "Checkpoint root: $CHECKPOINT_ROOT"
 echo "Data dir: $DATA_DIR"
 echo "External SO-101 video dir: ${SO101_VIDEO_DIR:-<zarr workspace_rgb>}"
 echo "External SO-101 video fps: $SO101_VIDEO_FPS"
@@ -246,7 +248,15 @@ TRAIN_CMD=(
   "checkpoint.keep_latest_only=$KEEP_LATEST_ONLY"
   "dataloader_train.num_workers=$NUM_WORKERS"
   "trainer.grad_accum_iter=$GRAD_ACCUM_ITER"
+  "model.config.video_dit_path=$VIDEO_CKPT_PATH"
 )
+
+if [ "${INIT_NAME}" = "partial_bridge_init" ]; then
+  TRAIN_CMD+=(
+    "model.config.action_dit_path=$PARTIAL_CKPT"
+    "model.config.allow_partial_action_dit_load=true"
+  )
+fi
 
 if [ -n "$VIDEO_LORA_CKPT" ]; then
   TRAIN_CMD+=(

@@ -8,12 +8,14 @@ MIMIC_VIDEO_ROOT="${MIMIC_VIDEO_ROOT:-${SCRATCH}/mimic_video}"
 MIMIC_VIDEO_SHARED_ROOT="${MIMIC_VIDEO_SHARED_ROOT:-${MIMIC_VIDEO_ROOT}/shared}"
 MIMIC_VIDEO_SHARED_CHECKPOINT_ROOT="${MIMIC_VIDEO_SHARED_CHECKPOINT_ROOT:-${MIMIC_VIDEO_SHARED_ROOT}/checkpoints}"
 MIMIC_VIDEO_SHARED_VIDEO_BACKBONE_DIR="${MIMIC_VIDEO_SHARED_VIDEO_BACKBONE_DIR:-${MIMIC_VIDEO_SHARED_CHECKPOINT_ROOT}/video_backbone}"
+MIMIC_VIDEO_SHARED_ACTION_DECODER_DIR="${MIMIC_VIDEO_SHARED_ACTION_DECODER_DIR:-${MIMIC_VIDEO_SHARED_CHECKPOINT_ROOT}/action_decoder}"
 UV_TOOL_BIN_DIR="${UV_TOOL_BIN_DIR:-${MIMIC_VIDEO_SHARED_ROOT}/uv-bin}"
 BASE_VIDEO_FILE="${BASE_VIDEO_FILE:-v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused.pt}"
 MIMIC_VIDEO_BACKBONE_PATH="${MIMIC_VIDEO_BACKBONE_PATH:-${MIMIC_VIDEO_SHARED_VIDEO_BACKBONE_DIR}/${BASE_VIDEO_FILE}}"
+MIMIC_VIDEO_BRIDGE_ACTION_DECODER_PATH="${MIMIC_VIDEO_BRIDGE_ACTION_DECODER_PATH:-${MIMIC_VIDEO_SHARED_ACTION_DECODER_DIR}/w2a_bridge_v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused_lr1.000e-04_layer20_bsz256_iter_000014112.pt}"
 export REPO_ROOT SCRATCH MIMIC_VIDEO_ROOT MIMIC_VIDEO_SHARED_ROOT
-export MIMIC_VIDEO_SHARED_CHECKPOINT_ROOT MIMIC_VIDEO_SHARED_VIDEO_BACKBONE_DIR
-export UV_TOOL_BIN_DIR BASE_VIDEO_FILE MIMIC_VIDEO_BACKBONE_PATH
+export MIMIC_VIDEO_SHARED_CHECKPOINT_ROOT MIMIC_VIDEO_SHARED_VIDEO_BACKBONE_DIR MIMIC_VIDEO_SHARED_ACTION_DECODER_DIR
+export UV_TOOL_BIN_DIR BASE_VIDEO_FILE MIMIC_VIDEO_BACKBONE_PATH MIMIC_VIDEO_BRIDGE_ACTION_DECODER_PATH
 export PATH="${UV_TOOL_BIN_DIR}:${PATH}"
 
 if [[ $# -gt 0 ]]; then
@@ -22,19 +24,21 @@ if [[ $# -gt 0 ]]; then
   exit 1
 fi
 
-mkdir -p "${MIMIC_VIDEO_SHARED_VIDEO_BACKBONE_DIR}"
+mkdir -p "${MIMIC_VIDEO_SHARED_VIDEO_BACKBONE_DIR}" "${MIMIC_VIDEO_SHARED_ACTION_DECODER_DIR}"
 
-if [[ -f "${MIMIC_VIDEO_BACKBONE_PATH}" ]]; then
-  echo "Base video backbone already present:"
+if [[ -f "${MIMIC_VIDEO_BACKBONE_PATH}" && -f "${MIMIC_VIDEO_BRIDGE_ACTION_DECODER_PATH}" ]]; then
+  echo "Bridge base checkpoints already present:"
   echo "  ${MIMIC_VIDEO_BACKBONE_PATH}"
+  echo "  ${MIMIC_VIDEO_BRIDGE_ACTION_DECODER_PATH}"
   exit 0
 fi
 
-echo "Downloading Bridge-finetuned Mimic Video backbone into:"
+echo "Downloading Bridge-finetuned Mimic Video checkpoints into:"
 echo "  ${MIMIC_VIDEO_SHARED_CHECKPOINT_ROOT}"
 echo
-echo "Expected backbone after download:"
+echo "Expected checkpoints after download:"
 echo "  ${MIMIC_VIDEO_BACKBONE_PATH}"
+echo "  ${MIMIC_VIDEO_BRIDGE_ACTION_DECODER_PATH}"
 echo
 
 run_repo_downloader() {
@@ -80,7 +84,15 @@ if [[ ! -f "${MIMIC_VIDEO_BACKBONE_PATH}" ]]; then
   find "${MIMIC_VIDEO_SHARED_VIDEO_BACKBONE_DIR}" -maxdepth 2 -type f -print | sort >&2
   exit 1
 fi
+if [[ ! -f "${MIMIC_VIDEO_BRIDGE_ACTION_DECODER_PATH}" ]]; then
+  echo "ERROR: download finished, but expected Bridge action decoder is still missing:" >&2
+  echo "  ${MIMIC_VIDEO_BRIDGE_ACTION_DECODER_PATH}" >&2
+  echo "Files under ${MIMIC_VIDEO_SHARED_ACTION_DECODER_DIR}:" >&2
+  find "${MIMIC_VIDEO_SHARED_ACTION_DECODER_DIR}" -maxdepth 2 -type f -print | sort >&2
+  exit 1
+fi
 
 echo
-echo "Base video backbone ready:"
+echo "Bridge base checkpoints ready:"
 echo "  ${MIMIC_VIDEO_BACKBONE_PATH}"
+echo "  ${MIMIC_VIDEO_BRIDGE_ACTION_DECODER_PATH}"

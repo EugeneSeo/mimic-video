@@ -95,6 +95,15 @@ decoder run:
 bash scripts/so101/train_action_decoder.sh scripts/so101/experiments/so101-multi-object-delta30.env --time=24:00:00
 ```
 
+On a non-Slurm GPU server, set the data/checkpoint root explicitly and use the
+local torchrun wrapper:
+
+```bash
+export MIMIC_VIDEO_ROOT=/workspace/mimic_video
+export NUM_GPUS=2
+bash scripts/so101/train_action_decoder_local.sh scripts/so101/experiments/so101-multi-object-delta30.env
+```
+
 Absolute 5Hz assets are mainly for old bottle eval/download:
 
 ```bash

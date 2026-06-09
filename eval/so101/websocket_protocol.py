@@ -10,6 +10,7 @@ used only for paired local server/dry-run clients on trusted connections.
 from __future__ import annotations
 
 import functools
+import io
 import pickle
 import socket
 import struct
@@ -64,8 +65,26 @@ else:
     def packb(obj: Any) -> bytes:
         return pickle.dumps(obj, protocol=pickle.HIGHEST_PROTOCOL)
 
+    class _NumpyCompatUnpickler(pickle.Unpickler):
+        """Unpickler compatible with NumPy 2 pickles on NumPy 1 runtimes.
+
+        NumPy 2 pickles may reference modules like ``numpy._core.numeric``.
+        NumPy 1 exposes the same implementation under ``numpy.core.numeric``.
+        This matters for portable SO-101 clients because a local LeRobot env can
+        use NumPy 2 while the GPU/server env still uses NumPy 1 and falls back to
+        pickle transport when msgpack is unavailable.
+        """
+
+        def find_class(self, module: str, name: str) -> Any:
+            if module.startswith("numpy._core"):
+                module = module.replace("numpy._core", "numpy.core", 1)
+            return super().find_class(module, name)
+
+    def _pickle_loads_numpy_compat(data: bytes) -> Any:
+        return _NumpyCompatUnpickler(io.BytesIO(data)).load()
+
     def unpackb(data: bytes) -> Any:
-        return pickle.loads(data)
+        return _pickle_loads_numpy_compat(data)
 
 
 def recv_exact(sock: socket.socket, num_bytes: int) -> bytes:

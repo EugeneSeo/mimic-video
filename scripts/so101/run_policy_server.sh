@@ -26,6 +26,11 @@ else
   mimic_video_require_dir "${MIMIC_VIDEO_SHARED_ACTION_DATA_DIR}" "action zarr"
 fi
 
+use_prompt_cache="${MIMIC_VIDEO_SERVER_USE_PROMPT_CACHE:-0}"
+if [[ "${use_prompt_cache}" == "1" ]]; then
+  mimic_video_require_file "${MIMIC_VIDEO_PROMPT_EMBEDDING_MANIFEST_PATH}" "prompt embedding manifest"
+fi
+
 cd "${REPO_ROOT}"
 
 cmd=(
@@ -45,6 +50,10 @@ if [[ "${use_stats}" == "1" ]]; then
   cmd+=(--stats-path "${MIMIC_VIDEO_ACTION_DECODER_STATS_PATH}")
 else
   cmd+=(--data-dir "${MIMIC_VIDEO_SHARED_ACTION_DATA_DIR}")
+fi
+
+if [[ "${use_prompt_cache}" == "1" ]]; then
+  cmd+=(--prompt-embedding-manifest "${MIMIC_VIDEO_PROMPT_EMBEDDING_MANIFEST_PATH}")
 fi
 
 "${cmd[@]}" "$@"

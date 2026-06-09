@@ -125,3 +125,11 @@ For delta checkpoints after training:
 bash scripts/so101/check_assets.sh scripts/so101/experiments/so101-bottle-delta30.env
 bash scripts/so101/run_policy_server.sh scripts/so101/experiments/so101-bottle-delta30.env
 ```
+
+To serve a fixed bottle prompt without loading the T5 text encoder on every
+server start, export the prompt embedding once and enable the prompt cache:
+
+```bash
+bash scripts/so101/export_bottle_prompt_embedding.sh scripts/so101/experiments/so101-bottle-delta30.env
+MIMIC_VIDEO_SERVER_USE_PROMPT_CACHE=1 bash scripts/so101/run_policy_server.sh scripts/so101/experiments/so101-bottle-delta30.env
+```

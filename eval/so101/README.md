@@ -48,7 +48,22 @@ right half: wrist camera
 ```
 
 If the server is not started with `--load-text-encoder`, the client must send
-`observation/prompt_embedding`.
+`observation/prompt_embedding` or a `prompt` that exists in the server-side
+prompt embedding manifest.
+
+For the fixed bottle prompt, export the embedding once:
+
+```bash
+export MIMIC_VIDEO_ROOT=/workspace/mimic_video
+bash scripts/so101/export_bottle_prompt_embedding.sh scripts/so101/experiments/so101-bottle-delta30.env
+```
+
+Then serve with prompt cache enabled:
+
+```bash
+export MIMIC_VIDEO_SERVER_USE_PROMPT_CACHE=1
+bash scripts/so101/run_policy_server.sh scripts/so101/experiments/so101-bottle-delta30.env
+```
 
 ## Response Schema
 

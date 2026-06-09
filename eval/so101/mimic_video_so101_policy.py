@@ -52,6 +52,7 @@ class SO101MimicVideoPolicyConfig:
     action_model_path: pathlib.Path
     data_dir: pathlib.Path | None = None
     stats_path: pathlib.Path | None = None
+    prompt_embedding_manifest_path: pathlib.Path | None = None
     video_lora_path: pathlib.Path | None = None
     num_val_episodes: int = 10
     device: str = "cuda"
@@ -83,8 +84,12 @@ class MimicVideoSO101Policy:
             raise FileNotFoundError(f"Missing SO-101 stats file: {cfg.stats_path}")
         if cfg.stats_path is None and (cfg.data_dir is None or not cfg.data_dir.exists()):
             raise FileNotFoundError(f"Missing SO-101 data directory: {cfg.data_dir}")
+        if cfg.prompt_embedding_manifest_path is not None and not cfg.prompt_embedding_manifest_path.exists():
+            raise FileNotFoundError(f"Missing SO-101 prompt embedding manifest: {cfg.prompt_embedding_manifest_path}")
 
         self.cfg = cfg
+        self.prompt_embedding_manifest = self._load_prompt_embedding_manifest(cfg.prompt_embedding_manifest_path)
+        self.prompt_embedding_cache: dict[str, torch.Tensor] = {}
         self.config, self.data_config = self._load_resolved_config()
         resize_sizes = list(self.data_config.policy_io.img_resize_sizes)
         self.image_height = int(resize_sizes[0])
@@ -160,6 +165,29 @@ class MimicVideoSO101Policy:
             key: {stat_key: np.asarray(stat_value, dtype=np.float32) for stat_key, stat_value in value.items()}
             for key, value in stats.items()
         }
+
+    @staticmethod
+    def _normalize_prompt(prompt: str) -> str:
+        return " ".join(prompt.strip().split())
+
+    @classmethod
+    def _load_prompt_embedding_manifest(cls, path: pathlib.Path | None) -> dict[str, pathlib.Path]:
+        if path is None:
+            return {}
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        entries = payload.get("prompts", payload)
+        if not isinstance(entries, dict):
+            raise ValueError(f"Prompt embedding manifest must be a JSON object: {path}")
+
+        prompt_to_path = {}
+        for prompt, embedding_path in entries.items():
+            if not isinstance(prompt, str) or not isinstance(embedding_path, str):
+                raise ValueError(f"Invalid prompt embedding manifest entry in {path}: {prompt!r} -> {embedding_path!r}")
+            resolved = pathlib.Path(embedding_path)
+            if not resolved.is_absolute():
+                resolved = path.parent / resolved
+            prompt_to_path[cls._normalize_prompt(prompt)] = resolved
+        return prompt_to_path
 
     def _load_video_lora_adapter(self, video_pipe: Video2WorldPipeline) -> None:
         from peft import LoraConfig, inject_adapter_in_model
@@ -243,8 +271,8 @@ class MimicVideoSO101Policy:
 
         Expected keys are ``observation/images/front`` and ``observation/state``.
         A request may either include ``observation/prompt_embedding`` with shape
-        ``(512, 1024)`` or use ``prompt`` when the policy was constructed with
-        ``load_text_encoder=True``.
+        ``(512, 1024)`` or use ``prompt`` when the prompt exists in the cached
+        embedding manifest or the policy was constructed with ``load_text_encoder=True``.
         """
         started_at = time.perf_counter()
         input_vid = self._online_front_video_tensor(
@@ -257,9 +285,10 @@ class MimicVideoSO101Policy:
 
         if prompt_embedding is None and not self.cfg.load_text_encoder:
             raise ValueError(
-                "Request did not include observation/prompt_embedding, and the policy server was started "
-                "without --load-text-encoder. For robot dry-run either start the server with "
-                "--load-text-encoder or send a precomputed prompt embedding."
+                "Request did not include observation/prompt_embedding, the prompt was not found in the "
+                "precomputed prompt embedding manifest, and the policy server was started without "
+                "--load-text-encoder. Send a precomputed prompt embedding, add the prompt to the manifest, "
+                "or start the server with --load-text-encoder."
             )
 
         actions = self.pipeline(
@@ -326,13 +355,30 @@ class MimicVideoSO101Policy:
     def _online_prompt_embedding(self, observation: dict[str, object]) -> torch.Tensor | None:
         embedding = observation.get("observation/prompt_embedding", observation.get("prompt_embedding"))
         if embedding is None:
-            return None
-        embedding_array = np.asarray(embedding, dtype=np.float32)
+            prompt = self._normalize_prompt(str(observation.get("prompt", "")))
+            if not prompt:
+                return None
+            cached = self.prompt_embedding_cache.get(prompt)
+            if cached is not None:
+                return cached
+            embedding_path = self.prompt_embedding_manifest.get(prompt)
+            if embedding_path is None:
+                return None
+            if not embedding_path.exists():
+                raise FileNotFoundError(f"Missing cached prompt embedding for {prompt!r}: {embedding_path}")
+            embedding = np.load(embedding_path)
+
+        embedding_array = np.array(embedding, dtype=np.float32, copy=True)
         if embedding_array.shape == (512, 1024):
             embedding_array = embedding_array[None, ...]
         if embedding_array.shape != (1, 512, 1024):
             raise ValueError(f"Expected prompt embedding shape (512, 1024) or (1, 512, 1024), got {embedding_array.shape}")
-        return torch.as_tensor(embedding_array, device=self.cfg.device, dtype=self.cfg.dtype)
+        tensor = torch.as_tensor(embedding_array, device=self.cfg.device, dtype=self.cfg.dtype)
+        if embedding is not None and "prompt" in observation and observation.get("observation/prompt_embedding") is None:
+            prompt = self._normalize_prompt(str(observation.get("prompt", "")))
+            if prompt:
+                self.prompt_embedding_cache[prompt] = tensor
+        return tensor
 
     @torch.no_grad()
     def generate_video_from_dataset_sample(self, sample: dict[str, np.ndarray], *, seed: int) -> np.ndarray:
@@ -430,6 +476,9 @@ class MimicVideoSO101Policy:
             "views": ["front"],
             "data_dir": None if self.cfg.data_dir is None else str(self.cfg.data_dir),
             "stats_path": None if self.cfg.stats_path is None else str(self.cfg.stats_path),
+            "prompt_embedding_manifest_path": None
+            if self.cfg.prompt_embedding_manifest_path is None
+            else str(self.cfg.prompt_embedding_manifest_path),
             "video_model_path": str(self.cfg.video_model_path),
             "video_lora_path": None if self.cfg.video_lora_path is None else str(self.cfg.video_lora_path),
             "action_model_path": str(self.cfg.action_model_path),

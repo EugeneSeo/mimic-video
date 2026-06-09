@@ -67,6 +67,22 @@ download_checkpoint() {
   esac
 }
 
+download_prompt_embeddings() {
+  local repo="$1"
+  local include="$2"
+
+  if [[ -z "${repo}" || -z "${include}" ]]; then
+    return 0
+  fi
+
+  echo
+  echo "Downloading prompt embeddings from ${repo}:${include}"
+  hf download "${repo}" \
+    --repo-type model \
+    --include "${include}" \
+    --local-dir "${MIMIC_VIDEO_EXPERIMENT_ROOT}"
+}
+
 download_checkpoint "${VIDEO_LORA_REPO}" "${VIDEO_LORA_FILE}" "${MIMIC_VIDEO_EXPERIMENT_VIDEO_LORA_DIR}"
 
 if [[ "${ACTION_ASSETS_ENABLED}" != "1" ]]; then
@@ -81,6 +97,9 @@ else
     "${MIMIC_VIDEO_ACTION_DECODER_REPO}" \
     "${MIMIC_VIDEO_ACTION_DECODER_STATS_FILE}" \
     "${MIMIC_VIDEO_ACTION_DECODER_DIR}"
+  download_prompt_embeddings \
+    "${MIMIC_VIDEO_PROMPT_EMBEDDING_REPO}" \
+    "${MIMIC_VIDEO_PROMPT_EMBEDDING_FILE}"
 fi
 
 if [[ -n "${BASE_VIDEO_REPO}" ]]; then

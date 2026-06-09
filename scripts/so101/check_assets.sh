@@ -64,7 +64,7 @@ fi
 check_recommended_dir "external 5fps hstack video data" "${MIMIC_VIDEO_SHARED_VIDEO_DATA_DIR}"
 
 if [[ "${ACTION_ASSETS_ENABLED}" == "1" && -f "${MIMIC_VIDEO_SHARED_ACTION_DATA_DIR}/paths.pkl" ]]; then
-  python - "${MIMIC_VIDEO_SHARED_ACTION_DATA_DIR}" <<'PY'
+  python3 - "${MIMIC_VIDEO_SHARED_ACTION_DATA_DIR}" <<'PY'
 import pathlib
 import pickle
 import sys

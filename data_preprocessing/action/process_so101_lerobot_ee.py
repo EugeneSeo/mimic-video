@@ -13,6 +13,7 @@ import argparse
 import os
 import pathlib
 import sys
+import traceback
 from dataclasses import dataclass
 from typing import Any
 
@@ -130,6 +131,9 @@ def _timestamps_ns(frame: pd.DataFrame, fps: float) -> np.ndarray:
 def _poses_from_joints(kinematics: Any, joints_deg: np.ndarray) -> np.ndarray:
     poses = np.empty((len(joints_deg), 4, 4), dtype=np.float32)
     for idx, joint_pos in enumerate(joints_deg):
+        # placo's Boost.Python binding expects C++ doubles; numpy.float32
+        # scalars from LeRobot parquet rows do not satisfy that signature.
+        joint_pos = np.asarray([float(value) for value in joint_pos], dtype=np.float64)
         poses[idx] = kinematics.forward_kinematics(joint_pos).astype(np.float32)
     return poses
 
@@ -295,7 +299,7 @@ def main() -> None:
                 return
             if args.dry_run:
                 states = _stack_column(episode[args.state_key].iloc[:1], args.state_key)
-                pose = kinematics.forward_kinematics(states[0, layout.arm_state_indices])
+                pose = _poses_from_joints(kinematics, states[:1, layout.arm_state_indices])[0]
                 print(f"episode={int(episode_index)} rows={len(episode)} first_ee_pose=\n{pose}")
                 return
 
@@ -318,9 +322,15 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
-    sys.stdout.flush()
-    sys.stderr.flush()
-    # placo/cmeel can double-free during Python shutdown on some cluster images.
-    # The conversion work is already finished here; bypass native finalizers on success.
-    os._exit(0)
+    exit_code = 0
+    try:
+        main()
+    except BaseException:
+        traceback.print_exc()
+        exit_code = 1
+    finally:
+        sys.stdout.flush()
+        sys.stderr.flush()
+        # placo/cmeel can double-free during Python shutdown on some cluster images.
+        # Bypass native finalizers after printing any exception.
+        os._exit(exit_code)

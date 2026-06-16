@@ -62,7 +62,9 @@ lerobot, pandas, zarr, numcodecs, placo
 
 At implementation time, the default `lerobot` conda environment was missing
 `zarr`, `numcodecs`, and `placo`, while `model/.venv` was also missing `placo`.
-Do not install packages from an interactive agent session. Prepare an
+`placo==0.6.5` is now tracked in `model/pyproject.toml`; run `uv sync --extra cu126`
+from `model/` to reproduce the model environment. If a simple `import placo`
+preflight aborts on a login node due to native library issues, prepare a clean
 environment with the required packages first, then point the Slurm script to it
 with either:
 

@@ -1,7 +1,9 @@
 import bisect
+import collections
 import logging
 import math
 import multiprocessing
+import os
 import typing
 from functools import partial
 from pathlib import Path
@@ -30,6 +32,8 @@ class ChunkReader:
         episode_mask: np.ndarray | None = None,
         stats_id: str | None = None,
         data_dir: Path | None = None,
+        external_video_dir: Path | None = None,
+        external_video_fps: float = 5.0,
         logger: logging.Logger | None = None,
         verbose: bool = False,
     ) -> None:
@@ -46,6 +50,14 @@ class ChunkReader:
         self._data_components = data_components
         self._timestep_anchor = timestep_anchor
         self._should_include_padded_tails = should_include_padded_tails
+        self._stats_id = stats_id
+        self._data_dir = data_dir
+        self._external_video_dir = self._resolve_external_video_dir(external_video_dir)
+        self._external_video_fps = float(external_video_fps)
+        self._external_video_timestamps_cache: dict[Path, np.ndarray] = {}
+        self._external_video_capture_cache_size = int(os.environ.get("MIMIC_EXTERNAL_VIDEO_CAPTURE_CACHE_SIZE", "8"))
+        self._external_video_captures: collections.OrderedDict[Path, cv2.VideoCapture] = collections.OrderedDict()
+        self._verbose = verbose
 
         non_persistent_action_components = {
             component: meta
@@ -107,9 +119,68 @@ class ChunkReader:
 
         self._restrict_keys = None
 
-        self._stats_id = stats_id
-        self._data_dir = data_dir
-        self._verbose = verbose
+    @staticmethod
+    def _resolve_external_video_dir(external_video_dir: Path | None) -> Path | None:
+        if external_video_dir is None:
+            return None
+        video_dir = external_video_dir / "video"
+        return video_dir if video_dir.is_dir() else external_video_dir
+
+    def _external_video_path(self, episode_path: Path) -> Path:
+        if self._external_video_dir is None:
+            raise RuntimeError("External video directory is not configured.")
+        return self._external_video_dir / f"{episode_path.stem}.mp4"
+
+    def _has_external_workspace_video(self, episode_path: Path) -> bool:
+        return self._external_video_dir is not None and self._external_video_path(episode_path).exists()
+
+    def _external_video_timestamps(self, episode_path: Path) -> np.ndarray:
+        video_path = self._external_video_path(episode_path)
+        if video_path not in self._external_video_timestamps_cache:
+            capture = cv2.VideoCapture(str(video_path))
+            if not capture.isOpened():
+                raise FileNotFoundError(f"Could not open external video: {video_path}")
+            n_frames = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
+            capture.release()
+            if n_frames <= 0:
+                raise ValueError(f"External video has no frames: {video_path}")
+            timestamps = np.rint(np.arange(n_frames, dtype=np.float64) * S_TO_NS / self._external_video_fps).astype(
+                np.uint64
+            )
+            self._external_video_timestamps_cache[video_path] = timestamps
+        return self._external_video_timestamps_cache[video_path]
+
+    def _component_timestamps(self, root: zarr.Group, episode_path: Path, key: str) -> np.ndarray:
+        if key == "workspace_rgb" and self._has_external_workspace_video(episode_path):
+            return self._external_video_timestamps(episode_path)
+        return root[f"{key}_timestamps"][...]
+
+    def _read_external_video_values(self, episode_path: Path, frame_indices: np.ndarray) -> np.ndarray:
+        video_path = self._external_video_path(episode_path)
+        capture = self._external_video_captures.get(video_path)
+        if capture is None:
+            capture = cv2.VideoCapture(str(video_path))
+            if not capture.isOpened():
+                raise FileNotFoundError(f"Could not open external video: {video_path}")
+            if self._external_video_capture_cache_size > 0:
+                self._external_video_captures[video_path] = capture
+                while len(self._external_video_captures) > self._external_video_capture_cache_size:
+                    _, stale_capture = self._external_video_captures.popitem(last=False)
+                    stale_capture.release()
+        else:
+            self._external_video_captures.move_to_end(video_path)
+
+        frames = []
+        for frame_index in frame_indices:
+            capture.set(cv2.CAP_PROP_POS_FRAMES, int(frame_index))
+            ok, frame_bgr = capture.read()
+            if not ok:
+                raise IndexError(f"Could not read frame {frame_index} from {video_path}")
+            frames.append(cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB))
+        output = np.asarray(frames, dtype=np.uint8)
+        if self._external_video_capture_cache_size <= 0:
+            capture.release()
+        return output
 
     def _get_timesteps(
         self,
@@ -123,7 +194,7 @@ class ChunkReader:
         with zarr.open(str(episode_path), "r") as root:
             try:
                 min_num_timestamps = min(
-                    len(root[f"{component.split('/')[1]}_timestamps"])
+                    len(self._component_timestamps(root, episode_path, component.split("/")[1]))
                     for component, meta in self._data_components.items()
                     if meta["obs_type"] not in ObsType.PERSISTENT
                 )
@@ -140,10 +211,12 @@ class ChunkReader:
                 return None, 0
 
             latest_first_timestamp = max(
-                root[f"{component.split('/')[1]}_timestamps"][0] for component in non_persistent_action_components
+                self._component_timestamps(root, episode_path, component.split("/")[1])[0]
+                for component in non_persistent_action_components
             )
             earliest_last_timestamp = min(
-                root[f"{component.split('/')[1]}_timestamps"][-1] for component in non_persistent_action_components
+                self._component_timestamps(root, episode_path, component.split("/")[1])[-1]
+                for component in non_persistent_action_components
             )
             end_timestep = (
                 earliest_last_timestamp
@@ -156,7 +229,7 @@ class ChunkReader:
                 timesteps = np.arange(latest_first_timestamp, end_timestep, step)
                 return timesteps, len(timesteps)
 
-            timesteps = root[f"{self._timestep_anchor}_timestamps"][...]
+            timesteps = self._component_timestamps(root, episode_path, self._timestep_anchor)
 
             start_idx = linear_search_with_initial_guess_right(timesteps, latest_first_timestamp, 0)
             timesteps = timesteps[start_idx:]
@@ -181,15 +254,23 @@ class ChunkReader:
         self._restrict_keys = keys
 
     def _read_chunk(
-        self, root, key: str, meta: ObsMeta, step_timestamp: int, progress: float, *, is_action: bool
+        self,
+        root,
+        episode_path: Path,
+        key: str,
+        meta: ObsMeta,
+        step_timestamp: int,
+        progress: float,
+        *,
+        is_action: bool,
     ) -> np.ndarray | None:
         if self._restrict_keys is not None and key not in self._restrict_keys:
             return None
 
-        shift_timesteps = meta["shift_right_by"] * S_TO_NS
-        this_step_timestamp = step_timestamp + shift_timesteps
+        shift_timesteps = int(round(meta["shift_right_by"] * S_TO_NS))
+        this_step_timestamp = int(step_timestamp) + shift_timesteps
 
-        actual_timestamps = root[f"{key}_timestamps"]
+        actual_timestamps = self._component_timestamps(root, episode_path, key)
         n_timestamps = len(actual_timestamps)
 
         pred_duration = (meta["horizon"] - 1) / meta["target_frequency"] if meta["horizon"] > 1 else 0
@@ -226,7 +307,10 @@ class ChunkReader:
 
         # horizon is 1 and there is an exact match for the right timestamp
         if start_idx == end_idx:
-            values: np.ndarray = np.expand_dims(root[key][start_idx], 0)
+            if key == "workspace_rgb" and self._has_external_workspace_video(episode_path):
+                values: np.ndarray = self._read_external_video_values(episode_path, np.asarray([start_idx]))
+            else:
+                values = np.expand_dims(root[key][start_idx], 0)
 
         elif (
             meta["obs_type"] in ObsType.INTERPOLABLE
@@ -243,8 +327,11 @@ class ChunkReader:
                 indices = get_previous_indices(actual_timestamps, requested_timestamps)
             else:
                 indices = get_closest_indices(actual_timestamps, requested_timestamps)
-            start_offset = indices.min()
-            values = root[key][start_idx + start_offset : start_idx + indices.max() + 1][indices - start_offset]
+            if key == "workspace_rgb" and self._has_external_workspace_video(episode_path):
+                values = self._read_external_video_values(episode_path, start_idx + indices)
+            else:
+                start_offset = indices.min()
+                values = root[key][start_idx + start_offset : start_idx + indices.max() + 1][indices - start_offset]
 
         if values.ndim == 1 and values.dtype != np.object_:
             values = values[:, None]
@@ -275,7 +362,13 @@ class ChunkReader:
                 for key, meta in self._data_components.items()
                 if (
                     vals := self._read_chunk(
-                        root, key.split("/")[1], meta, step_timestamp, progress, is_action=key.startswith("action/")
+                        root,
+                        self._episode_paths[episode_idx],
+                        key.split("/")[1],
+                        meta,
+                        step_timestamp,
+                        progress,
+                        is_action=key.startswith("action/"),
                     )
                 )
                 is not None

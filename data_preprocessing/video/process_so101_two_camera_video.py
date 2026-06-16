@@ -215,7 +215,12 @@ def write_episode(buffer: EpisodeVideoBuffer, output_dir: pathlib.Path, *, fps: 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-id", default="dreamdifferent/so101_bottle")
-    parser.add_argument("--root", type=pathlib.Path, default=None, help="Optional local LeRobot cache/root directory.")
+    parser.add_argument("--root", type=pathlib.Path, default=None, help="Local LeRobot cache/root directory.")
+    parser.add_argument(
+        "--allow-download",
+        action="store_true",
+        help="Allow LeRobotDataset to download missing dataset files. Disabled by default for cluster jobs.",
+    )
     parser.add_argument("--output-dir", type=pathlib.Path, required=True)
     parser.add_argument("--front-key", default="observation.images.front")
     parser.add_argument("--wrist-key", default="observation.images.wrist")
@@ -240,8 +245,14 @@ def main() -> None:
 
     if args.output_dir.exists() and any(args.output_dir.iterdir()) and not args.overwrite:
         raise FileExistsError(f"OUTPUT_DIR is not empty: {args.output_dir}. Use --overwrite or choose a new path.")
+    if args.root is None and not args.allow_download:
+        raise ValueError("Set --root to a local LeRobot dataset, or pass --allow-download explicitly.")
 
-    dataset_kwargs = {"repo_id": args.repo_id, "video_backend": args.video_backend}
+    dataset_kwargs = {
+        "repo_id": args.repo_id,
+        "video_backend": args.video_backend,
+        "download_videos": args.allow_download,
+    }
     if args.root is not None:
         dataset_kwargs["root"] = args.root
     dataset = LeRobotDataset(**dataset_kwargs)

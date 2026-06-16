@@ -234,3 +234,43 @@ def non_strict_load_model(model: torch.nn.Module, checkpoint_state_dict: dict) -
         unexpected_keys=unexpected_keys,
         incorrect_shapes=incorrect_shapes,
     )
+
+
+def load_matching_state_dict_tensors(model: torch.nn.Module, checkpoint_state_dict: dict) -> _IncompatibleKeys:
+    """Copy matching tensors directly, bypassing load hooks from checkpoint wrappers."""
+    model_state_dict = model.state_dict()
+    loaded_keys = set()
+    unexpected_keys = []
+    incorrect_shapes = []
+
+    with torch.no_grad():
+        for key, value in checkpoint_state_dict.items():
+            if "_extra_state" in key:
+                continue
+            target_key = key
+            if target_key not in model_state_dict and "._checkpoint_wrapped_module" in key:
+                stripped_key = key.replace("._checkpoint_wrapped_module", "")
+                if stripped_key in model_state_dict:
+                    target_key = stripped_key
+            if target_key not in model_state_dict:
+                unexpected_keys.append(key)
+                continue
+            target = model_state_dict[target_key]
+            if not isinstance(target, torch.Tensor):
+                unexpected_keys.append(key)
+                continue
+            shape_model = tuple(target.shape)
+            shape_checkpoint = tuple(value.shape)
+            if shape_model != shape_checkpoint:
+                incorrect_shapes.append((key, shape_checkpoint, shape_model))
+                continue
+            target.copy_(value.to(device=target.device, dtype=target.dtype))
+            loaded_keys.add(target_key)
+
+    missing_keys = [key for key in model_state_dict if key not in loaded_keys and "_extra_state" not in key]
+
+    return _IncompatibleKeys(
+        missing_keys=missing_keys,
+        unexpected_keys=unexpected_keys,
+        incorrect_shapes=incorrect_shapes,
+    )

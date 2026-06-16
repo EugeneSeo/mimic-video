@@ -13,6 +13,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${REPO_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 CONDA_ENV_PATH="${CONDA_ENV_PATH:-/cluster/home/dohkim/miniforge3/envs/lerobot}"
 CONDA_SH="${CONDA_SH:-/cluster/home/dohkim/miniforge3/etc/profile.d/conda.sh}"
+PYTHON_BIN="${PYTHON_BIN:-}"
 
 LEROBOT_ROOT="${LEROBOT_ROOT:?Set LEROBOT_ROOT to the local LeRobot v3 dataset root.}"
 OUTPUT_DIR="${OUTPUT_DIR:?Set OUTPUT_DIR for the hstack video dataset.}"
@@ -24,13 +25,14 @@ VIDEO_BACKEND="${VIDEO_BACKEND:-pyav}"
 MAX_EPISODES="${MAX_EPISODES-}"
 OVERWRITE="${OVERWRITE:-0}"
 
-if [ -f "$CONDA_SH" ]; then
+if [ -z "$PYTHON_BIN" ] && [ -f "$CONDA_SH" ]; then
   # shellcheck disable=SC1090
   source "$CONDA_SH"
   conda activate "$CONDA_ENV_PATH"
-else
+elif [ -z "$PYTHON_BIN" ]; then
   export PATH="$CONDA_ENV_PATH/bin:$PATH"
 fi
+PYTHON_BIN="${PYTHON_BIN:-python}"
 
 if [ -e "$OUTPUT_DIR" ] && [ "$OVERWRITE" = "1" ]; then
   rm -rf "$OUTPUT_DIR"
@@ -42,7 +44,7 @@ if [ -e "$OUTPUT_DIR" ] && [ "$OVERWRITE" != "1" ]; then
 fi
 
 cmd=(
-  python "$REPO_ROOT/data_preprocessing/video/process_so101_two_camera_video.py"
+  "$PYTHON_BIN" "$REPO_ROOT/data_preprocessing/video/process_so101_two_camera_video.py"
   --repo-id "$REPO_ID"
   --root "$LEROBOT_ROOT"
   --output-dir "$OUTPUT_DIR"

@@ -54,6 +54,28 @@ The default conda environment is:
 /cluster/home/dohkim/miniforge3/envs/lerobot
 ```
 
+The action EE conversion environment must contain:
+
+```text
+lerobot, pandas, zarr, numcodecs, placo
+```
+
+At implementation time, the default `lerobot` conda environment was missing
+`zarr`, `numcodecs`, and `placo`, while `model/.venv` was also missing `placo`.
+Do not install packages from an interactive agent session. Prepare an
+environment with the required packages first, then point the Slurm script to it
+with either:
+
+```bash
+CONDA_ENV_PATH=/path/to/env
+```
+
+or:
+
+```bash
+PYTHON_BIN=/path/to/env/bin/python
+```
+
 ## Smoke Conversion
 
 Video smoke conversion:

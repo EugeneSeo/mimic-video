@@ -13,6 +13,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${REPO_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 CONDA_ENV_PATH="${CONDA_ENV_PATH:-/cluster/home/dohkim/miniforge3/envs/lerobot}"
 CONDA_SH="${CONDA_SH:-/cluster/home/dohkim/miniforge3/etc/profile.d/conda.sh}"
+PYTHON_BIN="${PYTHON_BIN:-}"
 
 LEROBOT_ROOT="${LEROBOT_ROOT:?Set LEROBOT_ROOT to the local LeRobot v3 dataset root.}"
 URDF_PATH="${URDF_PATH:?Set URDF_PATH to local Simulation/SO101/so101_new_calib.urdf.}"
@@ -23,13 +24,29 @@ EPISODES="${EPISODES-}"
 OVERWRITE="${OVERWRITE:-0}"
 DRY_RUN="${DRY_RUN:-0}"
 
-if [ -f "$CONDA_SH" ]; then
+if [ -z "$PYTHON_BIN" ] && [ -f "$CONDA_SH" ]; then
   # shellcheck disable=SC1090
   source "$CONDA_SH"
   conda activate "$CONDA_ENV_PATH"
-else
+elif [ -z "$PYTHON_BIN" ]; then
   export PATH="$CONDA_ENV_PATH/bin:$PATH"
 fi
+PYTHON_BIN="${PYTHON_BIN:-python}"
+
+"$PYTHON_BIN" - <<'PY'
+missing = []
+for module in ("lerobot", "pandas", "zarr", "numcodecs", "placo"):
+    try:
+        __import__(module)
+    except Exception as exc:
+        missing.append(f"{module}: {type(exc).__name__}: {exc}")
+if missing:
+    raise SystemExit(
+        "SO101 EE conversion requires lerobot, pandas, zarr, numcodecs, and placo.\n"
+        "Use PYTHON_BIN or CONDA_ENV_PATH pointing to an environment with those packages.\n"
+        + "\n".join(missing)
+    )
+PY
 
 if [ -e "$OUTPUT_DIR" ] && [ "$OVERWRITE" = "1" ]; then
   rm -rf "$OUTPUT_DIR"
@@ -41,7 +58,7 @@ if [ -e "$OUTPUT_DIR" ] && [ "$OVERWRITE" != "1" ] && [ "$DRY_RUN" != "1" ]; the
 fi
 
 cmd=(
-  python "$REPO_ROOT/data_preprocessing/action/process_so101_lerobot_ee.py"
+  "$PYTHON_BIN" "$REPO_ROOT/data_preprocessing/action/process_so101_lerobot_ee.py"
   --root "$LEROBOT_ROOT"
   --urdf-path "$URDF_PATH"
   --target-frame-name "$TARGET_FRAME_NAME"

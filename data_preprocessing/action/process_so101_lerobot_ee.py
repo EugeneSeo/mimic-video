@@ -17,8 +17,6 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import tqdm
-import zarr
-from numcodecs import Blosc
 
 S_TO_NS = 1_000_000_000
 DEFAULT_MOTOR_NAMES = ("shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll")
@@ -39,6 +37,18 @@ def _load_json(path: pathlib.Path) -> dict[str, Any]:
 
     with path.open("r", encoding="utf-8") as f:
         return json.load(f)
+
+
+def _require_zarr() -> tuple[Any, Any]:
+    try:
+        import zarr
+        from numcodecs import Blosc
+    except ImportError as exc:
+        raise ImportError(
+            "SO101 EE conversion requires `zarr` and `numcodecs` in the active Python environment. "
+            "Use the model environment or install those packages into the LeRobot environment before conversion."
+        ) from exc
+    return zarr, Blosc
 
 
 def _load_tasks(root: pathlib.Path) -> dict[int, str]:
@@ -122,7 +132,8 @@ def _poses_from_joints(kinematics: Any, joints_deg: np.ndarray) -> np.ndarray:
     return poses
 
 
-def _write_array(root: zarr.Group, name: str, array: np.ndarray, *, chunk_t: int) -> None:
+def _write_array(root: Any, name: str, array: np.ndarray, *, chunk_t: int) -> None:
+    _, Blosc = _require_zarr()
     root.create_dataset(
         name,
         shape=array.shape,
@@ -133,7 +144,8 @@ def _write_array(root: zarr.Group, name: str, array: np.ndarray, *, chunk_t: int
     root[name][...] = array
 
 
-def _write_timestamps(root: zarr.Group, name: str, timestamps_ns: np.ndarray) -> None:
+def _write_timestamps(root: Any, name: str, timestamps_ns: np.ndarray) -> None:
+    _, Blosc = _require_zarr()
     root.create_dataset(
         f"{name}_timestamps",
         shape=timestamps_ns.shape,
@@ -180,6 +192,7 @@ def _write_episode(
         raise FileExistsError(f"Output episode exists: {out_path}. Use --overwrite to replace it.")
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
+    zarr, Blosc = _require_zarr()
     with zarr.open(str(out_path), "w") as root:
         _write_array(root, "eef_state_pose_lowdim", state_poses, chunk_t=1024)
         _write_timestamps(root, "eef_state_pose_lowdim", timestamps_ns)

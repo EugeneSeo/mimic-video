@@ -34,17 +34,18 @@ fi
 PYTHON_BIN="${PYTHON_BIN:-python}"
 
 "$PYTHON_BIN" - <<'PY'
+import importlib.util
+
 missing = []
 for module in ("lerobot", "pandas", "zarr", "numcodecs", "placo"):
-    try:
-        __import__(module)
-    except Exception as exc:
-        missing.append(f"{module}: {type(exc).__name__}: {exc}")
+    if importlib.util.find_spec(module) is None:
+        missing.append(module)
 if missing:
     raise SystemExit(
         "SO101 EE conversion requires lerobot, pandas, zarr, numcodecs, and placo.\n"
         "Use PYTHON_BIN or CONDA_ENV_PATH pointing to an environment with those packages.\n"
-        + "\n".join(missing)
+        "Missing modules: "
+        + ", ".join(missing)
     )
 PY
 

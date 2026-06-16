@@ -10,7 +10,9 @@ convert action poses to relative EE space.
 from __future__ import annotations
 
 import argparse
+import os
 import pathlib
+import sys
 from dataclasses import dataclass
 from typing import Any
 
@@ -317,3 +319,8 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+    sys.stdout.flush()
+    sys.stderr.flush()
+    # placo/cmeel can double-free during Python shutdown on some cluster images.
+    # The conversion work is already finished here; bypass native finalizers on success.
+    os._exit(0)

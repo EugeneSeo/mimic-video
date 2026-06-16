@@ -15,7 +15,13 @@ module load eth_proxy
 export PATH="/usr/sbin:/sbin:$PATH"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="${REPO_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
+if [ -z "${REPO_ROOT:-}" ]; then
+  if [ -n "${SLURM_SUBMIT_DIR:-}" ] && [ -d "$SLURM_SUBMIT_DIR/model/cosmos_predict2" ]; then
+    REPO_ROOT="$SLURM_SUBMIT_DIR"
+  else
+    REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+  fi
+fi
 MODEL_DIR="$REPO_ROOT/model"
 SCRATCH="${SCRATCH:-/cluster/scratch/${USER}}"
 MIMIC_VIDEO_ROOT="${MIMIC_VIDEO_ROOT:-$SCRATCH/mimic_video}"

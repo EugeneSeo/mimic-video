@@ -65,6 +65,12 @@ export MIMIC_VIDEO_SERVER_USE_PROMPT_CACHE=1
 bash scripts/so101/run_policy_server.sh scripts/so101/experiments/so101-bottle-delta30.env
 ```
 
+Smoke-test the server from another shell:
+
+```bash
+bash scripts/so101/run_synthetic_client.sh scripts/so101/experiments/so101-bottle-delta30.env
+```
+
 ## Response Schema
 
 ```python

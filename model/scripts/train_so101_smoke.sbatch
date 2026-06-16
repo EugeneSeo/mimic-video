@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem-per-cpu=16G
 #SBATCH --gpus=2
-#SBATCH --gres=gpumem:80G
+#SBATCH --gres=gpumem:40G
 #SBATCH --output=/cluster/scratch/%u/mimic_video/logs/%x-%j.out
 #SBATCH --error=/cluster/scratch/%u/mimic_video/logs/%x-%j.err
 

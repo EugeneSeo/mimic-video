@@ -133,3 +133,10 @@ server start, export the prompt embedding once and enable the prompt cache:
 bash scripts/so101/export_bottle_prompt_embedding.sh scripts/so101/experiments/so101-bottle-delta30.env
 MIMIC_VIDEO_SERVER_USE_PROMPT_CACHE=1 bash scripts/so101/run_policy_server.sh scripts/so101/experiments/so101-bottle-delta30.env
 ```
+
+In another shell, smoke-test the server with a synthetic hstack image and zero
+joint state:
+
+```bash
+bash scripts/so101/run_synthetic_client.sh scripts/so101/experiments/so101-bottle-delta30.env
+```

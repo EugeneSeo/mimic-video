@@ -1,7 +1,9 @@
 import bisect
+import collections
 import logging
 import math
 import multiprocessing
+import os
 import typing
 from functools import partial
 from pathlib import Path
@@ -53,7 +55,8 @@ class ChunkReader:
         self._external_video_dir = self._resolve_external_video_dir(external_video_dir)
         self._external_video_fps = float(external_video_fps)
         self._external_video_timestamps_cache: dict[Path, np.ndarray] = {}
-        self._external_video_captures: dict[Path, cv2.VideoCapture] = {}
+        self._external_video_capture_cache_size = int(os.environ.get("MIMIC_EXTERNAL_VIDEO_CAPTURE_CACHE_SIZE", "8"))
+        self._external_video_captures: collections.OrderedDict[Path, cv2.VideoCapture] = collections.OrderedDict()
         self._verbose = verbose
 
         non_persistent_action_components = {
@@ -159,7 +162,13 @@ class ChunkReader:
             capture = cv2.VideoCapture(str(video_path))
             if not capture.isOpened():
                 raise FileNotFoundError(f"Could not open external video: {video_path}")
-            self._external_video_captures[video_path] = capture
+            if self._external_video_capture_cache_size > 0:
+                self._external_video_captures[video_path] = capture
+                while len(self._external_video_captures) > self._external_video_capture_cache_size:
+                    _, stale_capture = self._external_video_captures.popitem(last=False)
+                    stale_capture.release()
+        else:
+            self._external_video_captures.move_to_end(video_path)
 
         frames = []
         for frame_index in frame_indices:
@@ -168,7 +177,10 @@ class ChunkReader:
             if not ok:
                 raise IndexError(f"Could not read frame {frame_index} from {video_path}")
             frames.append(cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB))
-        return np.asarray(frames, dtype=np.uint8)
+        output = np.asarray(frames, dtype=np.uint8)
+        if self._external_video_capture_cache_size <= 0:
+            capture.release()
+        return output
 
     def _get_timesteps(
         self,

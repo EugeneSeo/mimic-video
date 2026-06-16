@@ -127,3 +127,48 @@ which is a Bridge-compatible 10D action head with `max_horizon=16`.
 The 30Hz EE Zarr can be reused for later 30Hz EE experiments. For the first
 implementation, keep action training at 5Hz through `policy_io/so101_ee.yaml`
 instead of materializing a separate 5Hz action Zarr.
+
+## Action Decoder Training
+
+The `so101_ee` action head is Bridge-compatible: 15 predicted actions at 5Hz
+plus one observed lowdim state, with 10 action channels. Start from the existing
+Bridge action decoder checkpoint and load the already trained SO101 video LoRA
+adapter into the frozen video model.
+
+Download the video LoRA adapter explicitly before training:
+
+```bash
+mkdir -p /cluster/scratch/$USER/mimic_video/shared/checkpoints/video_lora/so101_multi_object_2cam_hstack_5fps
+hf download dreamdifferent/mimic-video-so101-multi-object-2cam-hstack-5fps-v2w-lora \
+  checkpoints/model/iter_000001000.pt \
+  --repo-type model \
+  --local-dir /cluster/scratch/$USER/mimic_video/shared/checkpoints/video_lora/so101_multi_object_2cam_hstack_5fps
+```
+
+Depending on `hf download` materialization, set `VIDEO_LORA_CKPT` to the
+downloaded file, usually:
+
+```bash
+export VIDEO_LORA_CKPT=/cluster/scratch/$USER/mimic_video/shared/checkpoints/video_lora/so101_multi_object_2cam_hstack_5fps/checkpoints/model/iter_000001000.pt
+```
+
+Smoke train:
+
+```bash
+SO101_EE_DATA_DIR=/cluster/scratch/$USER/mimic_video/shared/data/so101_hetero_ee_action_30hz_full \
+SO101_VIDEO_DIR=/cluster/scratch/$USER/mimic_video/shared/video_data/so101_hetero_front_wrist_hstack_5fps_full \
+VIDEO_LORA_CKPT=$VIDEO_LORA_CKPT \
+MAX_ITER=50 \
+SAVE_ITER=50 \
+RUN_VALIDATION=false \
+WANDB_MODE=offline \
+sbatch model/scripts/train_so101_ee_action.sbatch
+```
+
+For a longer run, increase `MAX_ITER`, `SAVE_ITER`, and optionally
+`GLOBAL_BATCH_SIZE`/`GRAD_ACCUM_ITER`. The script defaults to experiment name
+`so101_hetero_ee` and writes under:
+
+```text
+/cluster/scratch/$USER/mimic_video/experiments/so101_hetero_ee/
+```

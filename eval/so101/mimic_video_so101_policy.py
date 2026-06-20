@@ -248,7 +248,6 @@ class MimicVideoSO101Policy:
                 stop_after_step=self.cfg.stop_video_denoising_step,
                 seed=seed,
                 use_cuda_graphs=self.cfg.use_cuda_graphs,
-                fps=5.0,
             )
         elif mode == "oracle":
             actions = self._predict_with_oracle_future_video(
@@ -299,7 +298,6 @@ class MimicVideoSO101Policy:
             stop_after_step=self.cfg.stop_video_denoising_step,
             seed=seed,
             use_cuda_graphs=self.cfg.use_cuda_graphs,
-            fps=5.0,
         )
         actions_np = actions[0].float().cpu().numpy()
         if actions_np.shape != (self.action_horizon, self.action_dim):
@@ -422,7 +420,6 @@ class MimicVideoSO101Policy:
             num_sampling_step=self.cfg.num_sampling_steps,
             seed=seed,
             use_cuda_graphs=self.cfg.use_cuda_graphs,
-            fps=5.0,
         )
         return video[0].float().cpu().numpy()
 

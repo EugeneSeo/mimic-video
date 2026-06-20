@@ -29,7 +29,6 @@ if command -v hf >/dev/null 2>&1; then
     --repo-type model \
     --include "${remote_dir}/*" \
     --local-dir "${MVS_EXP_ROOT}" \
-    --local-dir-use-symlinks False \
     "$@"
 else
   python - <<PY "$repo_id" "$remote_dir" "$MVS_EXP_ROOT"

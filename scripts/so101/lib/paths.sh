@@ -14,7 +14,7 @@ mvs_repo_root() {
 }
 
 mvs_load_paths() {
-  local experiment="${1:-${MVS_EXPERIMENT:-so101-ee}}"
+  local experiment="${1:-${MVS_EXPERIMENT:-so101_hetero_ee}}"
   export MVS_EXPERIMENT="${experiment}"
 
   export REPO_ROOT="${REPO_ROOT:-$(mvs_repo_root)}"

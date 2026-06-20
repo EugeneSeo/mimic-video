@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/lib/paths.sh"
 
-experiment="${MVS_EXPERIMENT:-so101-ee}"
+experiment="${MVS_EXPERIMENT:-so101_hetero_ee}"
 if [[ $# -gt 0 && "$1" != --* ]]; then
   experiment="$1"
   shift

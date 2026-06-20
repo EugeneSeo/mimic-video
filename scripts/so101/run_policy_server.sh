@@ -32,6 +32,7 @@ print(f"SO-101 payload dependency check: numpy={np.__version__} msgpack={msgpack
 PY
 
 mvs_require_file "${MVS_VIDEO_BACKBONE_PATH}" "base video backbone"
+mvs_require_file "${MVS_SHARED_VIDEO_BACKBONE_DIR}/tokenizer/tokenizer.pth" "video tokenizer checkpoint"
 mvs_require_file "${MVS_VIDEO_LORA_PATH}" "video LoRA"
 mvs_require_file "${MVS_ACTION_MODEL_PATH}" "${ACTION_DECODER_KIND} action decoder"
 

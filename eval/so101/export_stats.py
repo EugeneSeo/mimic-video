@@ -21,8 +21,8 @@ from cosmos_predict2.configs.config import make_config  # noqa: E402
 from imaginaire.lazy_config import instantiate  # noqa: E402
 from imaginaire.utils.config_helper import override  # noqa: E402
 
-DEFAULT_RELATIVE_EXPERIMENT = (
-    "w2a_so101_relative_partial_bridge_init_"
+DEFAULT_DELTA_30HZ_EXPERIMENT = (
+    "w2a_so101_delta_30hz_partial_bridge_init_"
     "v2w_bridge_lora_rank256_lr1.778e-04_bsz64_iter_000070043_fused_"
     "lr1.000e-04_layer20_bsz4"
 )
@@ -42,7 +42,7 @@ def _jsonable(value: Any) -> Any:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--experiment-name", default=DEFAULT_RELATIVE_EXPERIMENT)
+    parser.add_argument("--experiment-name", default=DEFAULT_DELTA_30HZ_EXPERIMENT)
     parser.add_argument("--data-dir", type=pathlib.Path, required=True)
     parser.add_argument("--output", type=pathlib.Path, required=True)
     parser.add_argument("--num-val-episodes", type=int, default=10)

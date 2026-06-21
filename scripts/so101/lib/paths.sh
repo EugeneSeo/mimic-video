@@ -68,7 +68,12 @@ mimic_video_load_paths() {
   export MIMIC_VIDEO_SHARED_ROOT="${MIMIC_VIDEO_SHARED_ROOT:-${MIMIC_VIDEO_ROOT}/shared}"
   export MIMIC_VIDEO_EXPERIMENT_ROOT="${MIMIC_VIDEO_ROOT}/experiments/${MIMIC_VIDEO_EXPERIMENT}"
 
-  export MIMIC_VIDEO_SHARED_CHECKPOINT_ROOT="${MIMIC_VIDEO_SHARED_CHECKPOINT_ROOT:-${MIMIC_VIDEO_SHARED_ROOT}/checkpoints}"
+  local legacy_checkpoint_root="${SCRATCH}/mimic_video_checkpoints"
+  if [[ -z "${MIMIC_VIDEO_SHARED_CHECKPOINT_ROOT:-}" && -d "${legacy_checkpoint_root}" ]]; then
+    export MIMIC_VIDEO_SHARED_CHECKPOINT_ROOT="${legacy_checkpoint_root}"
+  else
+    export MIMIC_VIDEO_SHARED_CHECKPOINT_ROOT="${MIMIC_VIDEO_SHARED_CHECKPOINT_ROOT:-${MIMIC_VIDEO_SHARED_ROOT}/checkpoints}"
+  fi
   export MIMIC_VIDEO_SHARED_VIDEO_BACKBONE_DIR="${MIMIC_VIDEO_SHARED_VIDEO_BACKBONE_DIR:-${MIMIC_VIDEO_SHARED_CHECKPOINT_ROOT}/video_backbone}"
   export MIMIC_VIDEO_SHARED_DATA_ROOT="${MIMIC_VIDEO_SHARED_DATA_ROOT:-${MIMIC_VIDEO_SHARED_ROOT}/data}"
   export MIMIC_VIDEO_SHARED_VIDEO_DATA_ROOT="${MIMIC_VIDEO_SHARED_VIDEO_DATA_ROOT:-${MIMIC_VIDEO_SHARED_ROOT}/video_data}"
@@ -139,6 +144,9 @@ mimic_video_load_paths() {
       delta:30)
         export DATA_CONFIG="so101_delta_30hz"
         ;;
+      delta_gripper_absolute:30)
+        export DATA_CONFIG="so101_delta_30hz_gripper_absolute"
+        ;;
       delta:5)
         export DATA_CONFIG="so101_delta"
         ;;
@@ -171,7 +179,7 @@ mimic_video_load_paths() {
     "${MIMIC_VIDEO_EXPERIMENT_VIDEO_LORA_DIR}")"
   export COSMOS_PREDICT2_ARGS="${COSMOS_PREDICT2_ARGS:---checkpoints ${MIMIC_VIDEO_SHARED_CHECKPOINT_ROOT}}"
   case "${ACTION_TRANSFORM}" in
-    delta)
+    delta|delta_gripper_absolute)
       export MIMIC_VIDEO_ACTION_DECODER_DIR="${MIMIC_VIDEO_DELTA_ACTION_DECODER_DIR}"
       export MIMIC_VIDEO_ACTION_DECODER_RUN_DIR="${MIMIC_VIDEO_DELTA_ACTION_DECODER_RUN_DIR}"
       ;;
@@ -180,7 +188,7 @@ mimic_video_load_paths() {
       export MIMIC_VIDEO_ACTION_DECODER_RUN_DIR="${MIMIC_VIDEO_ABSOLUTE_ACTION_DECODER_RUN_DIR}"
       ;;
     *)
-      echo "ERROR: unsupported ACTION_TRANSFORM=${ACTION_TRANSFORM}. Supported: delta, absolute" >&2
+      echo "ERROR: unsupported ACTION_TRANSFORM=${ACTION_TRANSFORM}. Supported: delta, delta_gripper_absolute, absolute" >&2
       return 1
       ;;
   esac

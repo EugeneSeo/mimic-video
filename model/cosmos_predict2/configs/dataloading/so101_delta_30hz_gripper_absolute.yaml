@@ -1,0 +1,4 @@
+defaults:
+  - dataset: so101
+  - policy_io: so101_delta_30hz_gripper_absolute
+  - _self_

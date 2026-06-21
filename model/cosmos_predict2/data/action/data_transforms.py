@@ -193,6 +193,20 @@ class IncrementalLowdimDelta(DataTransform):
         return False
 
 
+class IncrementalLowdimDeltaWithAbsoluteIndices(IncrementalLowdimDelta):
+    def __init__(self, absolute_indices: list[int], **kwargs):
+        super().__init__(**kwargs)
+        self._absolute_indices = tuple(absolute_indices)
+
+    def __call__(
+        self, targets: list[tuple[str, np.ndarray]], relative_base_value: np.ndarray
+    ) -> Iterator[tuple[str, np.ndarray]]:
+        for key, delta in super().__call__(targets, relative_base_value):
+            value = next(value for target_key, value in targets if target_key == key)
+            delta[:, self._absolute_indices] = value[:, self._absolute_indices]
+            yield key, delta
+
+
 class RotationMatrixTo6D(DataTransform):
     def __call__(self, targets: list[tuple[str, np.ndarray]]) -> Iterator[tuple[str, np.ndarray]]:
         for key, rot_mat in targets:

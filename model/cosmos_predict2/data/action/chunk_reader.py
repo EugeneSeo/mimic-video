@@ -154,21 +154,21 @@ class ChunkReader:
 
     def _read_external_video_values(self, episode_path: Path, frame_indices: np.ndarray) -> np.ndarray:
         video_path = self._external_video_path(episode_path)
-        capture = self._external_video_captures.get(video_path)
-        if capture is None:
-            capture = cv2.VideoCapture(str(video_path))
-            if not capture.isOpened():
-                raise FileNotFoundError(f"Could not open external video: {video_path}")
-            self._external_video_captures[video_path] = capture
+        capture = cv2.VideoCapture(str(video_path))
+        if not capture.isOpened():
+            raise FileNotFoundError(f"Could not open external video: {video_path}")
 
-        frames = []
-        for frame_index in frame_indices:
-            capture.set(cv2.CAP_PROP_POS_FRAMES, int(frame_index))
-            ok, frame_bgr = capture.read()
-            if not ok:
-                raise IndexError(f"Could not read frame {frame_index} from {video_path}")
-            frames.append(cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB))
-        return np.asarray(frames, dtype=np.uint8)
+        try:
+            frames = []
+            for frame_index in frame_indices:
+                capture.set(cv2.CAP_PROP_POS_FRAMES, int(frame_index))
+                ok, frame_bgr = capture.read()
+                if not ok:
+                    raise IndexError(f"Could not read frame {frame_index} from {video_path}")
+                frames.append(cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB))
+            return np.asarray(frames, dtype=np.uint8)
+        finally:
+            capture.release()
 
     def _get_timesteps(
         self,

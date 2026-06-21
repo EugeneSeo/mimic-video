@@ -38,7 +38,7 @@ export PATH="/usr/sbin:/sbin:$PATH"
 #   LR_TAG=1.000e-04 | 3.000e-04
 #   GLOBAL_BATCH_SIZE=4 | 8 | 16 | 32 | 64
 #   GRAD_ACCUM_ITER=8 | 32  # optional; empty uses experiment default
-#   MAX_ITER=50
+#   MAX_ITER=2000
 #   KEEP_LATEST_ONLY=false | true
 #   RUN_VALIDATION=false
 #   WANDB_ENABLED=1 | 0
@@ -99,9 +99,9 @@ NUM_GPUS="${NUM_GPUS:-${SLURM_GPUS_ON_NODE:-2}}"
 LR_TAG="${LR_TAG:-1.000e-04}"
 GLOBAL_BATCH_SIZE="${GLOBAL_BATCH_SIZE:-4}"
 GRAD_ACCUM_ITER="${GRAD_ACCUM_ITER:-8}"
-MAX_ITER="${MAX_ITER:-50}"
+MAX_ITER="${MAX_ITER:-2000}"
 LOGGING_ITER="${LOGGING_ITER:-10}"
-SAVE_ITER="${SAVE_ITER:-50}"
+SAVE_ITER="${SAVE_ITER:-250}"
 KEEP_LATEST_ONLY="${KEEP_LATEST_ONLY:-false}"
 VALIDATION_ITER="${VALIDATION_ITER:-50}"
 RUN_VALIDATION="${RUN_VALIDATION:-false}"
@@ -217,6 +217,7 @@ echo "Video LoRA checkpoint: ${VIDEO_LORA_CKPT:-<none>}"
 echo "Experiment: $EXPERIMENT"
 echo "GPUs: $NUM_GPUS"
 echo "Per-GPU batch: $PER_GPU_BATCH_SIZE global_batch=$GLOBAL_BATCH_SIZE grad_accum=$GRAD_ACCUM_ITER effective_batch=$((GLOBAL_BATCH_SIZE * GRAD_ACCUM_ITER))"
+echo "Max iter: $MAX_ITER"
 echo "Run tmp dir: $RUN_TMP_DIR"
 echo "Output root: $IMAGINAIRE_OUTPUT_ROOT"
 echo "W&B: enabled=$WANDB_ENABLED entity=$WANDB_ENTITY project=$WANDB_PROJECT mode=$WANDB_MODE dir=$WANDB_DIR"
@@ -256,6 +257,10 @@ if [ -n "$VIDEO_LORA_CKPT" ]; then
     "model.config.video_lora_target_modules='$VIDEO_LORA_TARGET_MODULES'"
   )
 fi
+
+printf 'Train command:'
+printf ' %q' "${TRAIN_CMD[@]}"
+printf '\n'
 
 if [ -x .venv/bin/python ] && [ -x .venv/bin/torchrun ]; then
   source .venv/bin/activate

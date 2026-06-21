@@ -155,7 +155,7 @@ def register_so101_experiment(
     cfg["defaults"][1]["override /world2action_pipe"] = "so101"
     cfg["defaults"][2]["override /data_config"] = data_config
     cfg["model"]["config"]["pipe_config"]["xattn_layer_idx"] = 20
-    if data_config == "so101_delta_30hz":
+    if data_config in {"so101_delta_30hz", "so101_delta_30hz_gripper_absolute"}:
         cfg["model"]["config"]["pipe_config"]["net"] = {"max_horizon": 91}
     cfg["model"]["config"]["action_dit_path"] = action_dit_path
     cfg["model"]["config"]["allow_partial_action_dit_load"] = bool(action_dit_path)
@@ -178,7 +178,7 @@ def register_so101_experiment(
 
 
 for so101_data_config, so101_video_ckpt, so101_lr, so101_bsz in it.product(
-    ["so101", "so101_relative", "so101_delta", "so101_delta_30hz"],
+    ["so101", "so101_relative", "so101_delta", "so101_delta_30hz", "so101_delta_30hz_gripper_absolute"],
     SO101_VIDEO_CKPTS,
     [1e-4, 3e-4],
     [4, 8, 16, 32, 64],

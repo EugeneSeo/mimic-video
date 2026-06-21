@@ -62,7 +62,7 @@ the env files to run the same pipeline on the bottle dataset.
 
 ## Qualitative Results
 
-The thumbnails below link to the corresponding MP4 clips in `assets/so101/`.
+The GIFs below show qualitative prediction and real-world rollout results.
 
 ### Video Prediction Results
 
@@ -73,7 +73,7 @@ setting.
 
 | Homogeneous: GT vs Prediction | Heterogeneous: GT vs Prediction |
 | --- | --- |
-| [![Homogeneous prediction](assets/so101/thumbnails/prediction_homogeneous_gt_vs_pred.jpg)](assets/so101/prediction_homogeneous_gt_vs_pred.mp4) | [![Heterogeneous prediction](assets/so101/thumbnails/prediction_heterogeneous_gt_vs_pred.jpg)](assets/so101/prediction_heterogeneous_gt_vs_pred.mp4) |
+| ![Homogeneous prediction](assets/so101/gifs/prediction_homogeneous_gt_vs_pred.gif) | ![Heterogeneous prediction](assets/so101/gifs/prediction_heterogeneous_gt_vs_pred.gif) |
 
 ### Real-World Rollouts
 
@@ -81,7 +81,7 @@ These clips show SO-101 policy execution in the real workspace.
 
 | Pick-and-Place | Push, initial object on right | Push, initial object on left |
 | --- | --- | --- |
-| [![Pick-and-place rollout](assets/so101/thumbnails/rollout_mimicvideo_pick_place.jpg)](assets/so101/rollout_mimicvideo_pick_place.mp4) | [![Push rollout, object initially right](assets/so101/thumbnails/rollout_mimicvideo_push_right_initial_right.jpg)](assets/so101/rollout_mimicvideo_push_right_initial_right.mp4) | [![Push rollout, object initially left](assets/so101/thumbnails/rollout_mimicvideo_push_right_initial_left.jpg)](assets/so101/rollout_mimicvideo_push_right_initial_left.mp4) |
+| ![Pick-and-place rollout](assets/so101/gifs/rollout_mimicvideo_pick_place.gif) | ![Push rollout, object initially right](assets/so101/gifs/rollout_mimicvideo_push_right_initial_right.gif) | ![Push rollout, object initially left](assets/so101/gifs/rollout_mimicvideo_push_right_initial_left.gif) |
 
 ## Checkpoints and Artifacts
 

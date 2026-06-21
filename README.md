@@ -62,51 +62,26 @@ the env files to run the same pipeline on the bottle dataset.
 
 ## Qualitative Results
 
-Place README clips under `assets/so101/` using the filenames below. GitHub will
-render the videos inline when the files are present.
+The thumbnails below link to the corresponding MP4 clips in `assets/so101/`.
 
 ### Video Prediction Results
 
-These clips should show the future-video prediction quality that the action
-decoder conditions on.
+These clips show the future-video prediction quality that the action decoder
+conditions on. The homogeneous example illustrates the video-prediction failure
+mode, while the heterogeneous example is representative of the main release
+setting.
 
-<table>
-  <tr>
-    <td align="center"><strong>Homogeneous: GT vs Prediction</strong></td>
-    <td align="center"><strong>Heterogeneous: GT vs Prediction</strong></td>
-  </tr>
-  <tr>
-    <td>
-      <video src="assets/so101/prediction_homogeneous_gt_vs_pred.mp4" controls width="360"></video>
-    </td>
-    <td>
-      <video src="assets/so101/prediction_heterogeneous_gt_vs_pred.mp4" controls width="360"></video>
-    </td>
-  </tr>
-</table>
+| Homogeneous: GT vs Prediction | Heterogeneous: GT vs Prediction |
+| --- | --- |
+| [![Homogeneous prediction](assets/so101/thumbnails/prediction_homogeneous_gt_vs_pred.jpg)](assets/so101/prediction_homogeneous_gt_vs_pred.mp4) | [![Heterogeneous prediction](assets/so101/thumbnails/prediction_heterogeneous_gt_vs_pred.jpg)](assets/so101/prediction_heterogeneous_gt_vs_pred.mp4) |
 
 ### Real-World Rollouts
 
 These clips show SO-101 policy execution in the real workspace.
 
-<table>
-  <tr>
-    <td align="center"><strong>Pick-and-Place</strong></td>
-    <td align="center"><strong>Push, initial object on right</strong></td>
-    <td align="center"><strong>Push, initial object on left</strong></td>
-  </tr>
-  <tr>
-    <td>
-      <video src="assets/so101/rollout_mimicvideo_pick_place.mp4" controls width="300"></video>
-    </td>
-    <td>
-      <video src="assets/so101/rollout_mimicvideo_push_right_initial_right.mp4" controls width="300"></video>
-    </td>
-    <td>
-      <video src="assets/so101/rollout_mimicvideo_push_right_initial_left.mp4" controls width="300"></video>
-    </td>
-  </tr>
-</table>
+| Pick-and-Place | Push, initial object on right | Push, initial object on left |
+| --- | --- | --- |
+| [![Pick-and-place rollout](assets/so101/thumbnails/rollout_mimicvideo_pick_place.jpg)](assets/so101/rollout_mimicvideo_pick_place.mp4) | [![Push rollout, object initially right](assets/so101/thumbnails/rollout_mimicvideo_push_right_initial_right.jpg)](assets/so101/rollout_mimicvideo_push_right_initial_right.mp4) | [![Push rollout, object initially left](assets/so101/thumbnails/rollout_mimicvideo_push_right_initial_left.jpg)](assets/so101/rollout_mimicvideo_push_right_initial_left.mp4) |
 
 ## Checkpoints and Artifacts
 

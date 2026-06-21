@@ -73,15 +73,15 @@ setting.
 
 | Homogeneous: GT vs Prediction | Heterogeneous: GT vs Prediction |
 | --- | --- |
-| ![Homogeneous prediction](assets/so101/gifs/prediction_homogeneous_gt_vs_pred.gif) | ![Heterogeneous prediction](assets/so101/gifs/prediction_heterogeneous_gt_vs_pred.gif) |
+| ![Homogeneous prediction](assets/so101/prediction_homogeneous_gt_vs_pred.gif) | ![Heterogeneous prediction](assets/so101/prediction_heterogeneous_gt_vs_pred.gif) |
 
 ### Real-World Rollouts
 
 These clips show SO-101 policy execution in the real workspace.
 
-| Pick-and-Place | Push, initial object on right | Push, initial object on left |
+| Pick-and-Place | Push pink phone to the right, initial object on right | Push pink phone to the right, initial object on left |
 | --- | --- | --- |
-| ![Pick-and-place rollout](assets/so101/gifs/rollout_mimicvideo_pick_place.gif) | ![Push rollout, object initially right](assets/so101/gifs/rollout_mimicvideo_push_right_initial_right.gif) | ![Push rollout, object initially left](assets/so101/gifs/rollout_mimicvideo_push_right_initial_left.gif) |
+| ![Pick-and-place rollout](assets/so101/rollout_mimicvideo_pick_place.gif) | ![Push rollout, object initially right](assets/so101/rollout_mimicvideo_push_right_initial_right.gif) | ![Push rollout, object initially left](assets/so101/rollout_mimicvideo_push_right_initial_left.gif) |
 
 ## Checkpoints and Artifacts
 
